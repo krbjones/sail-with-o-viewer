@@ -643,7 +643,7 @@ map.on('moveend zoomend', () => {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chk-spatial')?.addEventListener('change', applyFilter);
 });
-document.addEventListener('click', () => setTimeout(injectChartButton, 80));
+document.addEventListener('click', () => setTimeout(injectChartControls, 80));
 
 buildLayersControl();
 
