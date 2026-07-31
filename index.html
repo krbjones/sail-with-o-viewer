@@ -957,8 +957,10 @@ async function autoLoadTracks() {
   }
   tracks.sort((a,b) => a.startTime - b.startTime);
 
-  document.getElementById('date-from').value = fmtDateInput(tracks[0].startTime);
-  document.getElementById('date-to').value   = fmtDateInput(tracks[tracks.length-1].startTime);
+  const latestTime = tracks[tracks.length-1].startTime;
+  const weekAgo    = latestTime - 7 * 24 * 60 * 60 * 1000;
+  document.getElementById('date-from').value = fmtDateInput(weekAgo);
+  document.getElementById('date-to').value   = fmtDateInput(latestTime);
   document.getElementById('splash').classList.add('hidden');
   applyFilter();
 }
