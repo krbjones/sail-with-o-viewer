@@ -1,0 +1,12 @@
+# GPX track files — excluded from repo (personal data, large volume)
+*.gpx
+sailties_export/
+
+# GeoTIFF chart files — large binaries, not suited for git
+*.tif
+*.tiff
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
