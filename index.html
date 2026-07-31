@@ -630,8 +630,12 @@ map.on('overlayadd', e => {
 });
 map.on('overlayremove baselayerchange', () => setTimeout(injectChartControls, 80));
 
-// Re-filter track list whenever the map view changes
-map.on('moveend zoomend', applyFilter);
+// Update sidebar list when the map view changes (no polyline re-render)
+let _spatialDebounce = null;
+map.on('moveend zoomend', () => {
+  clearTimeout(_spatialDebounce);
+  _spatialDebounce = setTimeout(updateSidebarForView, 150);
+});
 document.addEventListener('click', () => setTimeout(injectChartControls, 80));
 
 buildLayersControl();
@@ -947,8 +951,6 @@ function applyFilter() {
   const timeFrom = document.getElementById('time-from').value; // "HH:MM" or ""
   const timeTo   = document.getElementById('time-to').value;   // "HH:MM" or ""
 
-  const bounds = map.getBounds();
-
   selectedTrack = null;
   visibleTracks = tracks.filter(t => {
     if (t.startTime > toMs || t.endTime < fromMs) return false;
@@ -961,8 +963,6 @@ function applyFilter() {
         if (hhmm < timeFrom && hhmm > timeTo) return false;
       }
     }
-
-    if (!bboxIntersects(t, bounds)) return false;
 
     return true;
   });
@@ -1058,6 +1058,71 @@ function updateSidebar() {
         zoomToTrack(track);
       }
       // Refresh selected highlight across all items
+      document.querySelectorAll('.track-item').forEach(el => el.classList.remove('track-selected'));
+      if (selectedTrack) el.classList.add('track-selected');
+      updateAnimRange();
+      setAnimTime(animMin);
+      updateSlider(); updateTimeDisplay(); updateMarkers();
+    };
+    list.appendChild(el);
+  }
+}
+
+// ── Spatial sidebar filter (no polyline changes) ──────────────────
+function updateSidebarForView() {
+  if (!visibleTracks.length) return;
+  const bounds  = map.getBounds();
+  const inView  = visibleTracks.filter(t => bboxIntersects(t, bounds));
+
+  const list    = document.getElementById('tracklist');
+  const countEl = document.getElementById('tracklist-count');
+  const summary = document.getElementById('track-summary');
+
+  countEl.textContent = `${inView.length} of ${tracks.length}`;
+
+  if (!inView.length) {
+    list.innerHTML = '<div id="no-tracks">No tracks in current view.</div>';
+    summary.textContent = '';
+    return;
+  }
+
+  const totalDur = inView.reduce((s,t) => s + t.duration, 0);
+  summary.textContent = `Total: ${fmtDuration(totalDur)} · ${inView.length} track${inView.length!==1?'s':''}`;
+
+  list.innerHTML = '';
+  for (const track of inView) {
+    const el   = document.createElement('div');
+    el.className  = 'track-item';
+    el.dataset.id = track.id;
+
+    const maxSpd = Math.max(...track.points.map(p => p.speed));
+    if (track.shown === undefined) track.shown = true;
+
+    el.innerHTML = `
+      <input type="checkbox" class="track-cb" ${track.shown ? 'checked' : ''} title="Show/hide track">
+      <div class="track-dot"></div>
+      <div class="track-info">
+        <div class="track-date">${fmtDateTime(track.startTime)}</div>
+        <div class="track-meta">${fmtTime(track.startTime)} · ${fmtDuration(track.duration)} · max ${maxSpd.toFixed(1)} kts</div>
+      </div>
+      <button class="track-zoom" title="Zoom to track">⊕</button>
+    `;
+    if (!track.shown) el.classList.add('track-hidden');
+    if (selectedTrack === track) el.classList.add('track-selected');
+
+    el.querySelector('.track-cb').onchange = e => {
+      e.stopPropagation();
+      setTrackShown(track, e.target.checked);
+    };
+    el.querySelector('.track-zoom').onclick = e => { e.stopPropagation(); zoomToTrack(track); };
+    el.onclick = () => {
+      stopAnim();
+      if (selectedTrack === track) {
+        selectedTrack = null;
+      } else {
+        selectedTrack = track;
+        zoomToTrack(track);
+      }
       document.querySelectorAll('.track-item').forEach(el => el.classList.remove('track-selected'));
       if (selectedTrack) el.classList.add('track-selected');
       updateAnimRange();
