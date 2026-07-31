@@ -676,6 +676,69 @@ document.addEventListener('click', () => setTimeout(injectChartButton, 80));
 buildLayersControl();
 
 // ── Load local GeoTIFF chart ──────────────────────────────────────
+const DEFAULT_CHART_URL = 'lac_deschennes_chart_1550_cog.tif';
+
+async function loadChartFromUrl(url) {
+  const statusEl  = document.getElementById('load-status');
+  const progWrap  = document.getElementById('progress-wrap');
+  const progBar   = document.getElementById('progress-bar');
+  const progLabel = document.getElementById('progress-label');
+  const prevStatus = statusEl.textContent;
+
+  statusEl.textContent = '';
+  progWrap.classList.add('visible');
+  progBar.style.width = '10%';
+  progLabel.textContent = 'Fetching chart…';
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+
+    const filename = url.split('/').pop();
+    const arrayBuffer = await response.arrayBuffer();
+    const fileMB = (arrayBuffer.byteLength / 1024 / 1024).toFixed(1);
+
+    progBar.style.width = '60%';
+    progLabel.textContent = 'Parsing GeoTIFF…';
+    await new Promise(r => setTimeout(r, 0));
+
+    const georaster = await parseGeoraster(arrayBuffer);
+
+    progBar.style.width = '85%';
+    progLabel.textContent = 'Building layer…';
+    await new Promise(r => setTimeout(r, 0));
+
+    if (chartLayer) map.removeLayer(chartLayer);
+
+    chartGeoRaster = georaster;
+    const tileRes  = arrayBuffer.byteLength > 30 * 1024 * 1024 ? 128 : 256;
+
+    chartLayer = new GeoRasterLayer({
+      georaster,
+      opacity: 1,
+      resolution: tileRes,
+      pixelValuesToColorFn: chartPixelFn
+    });
+    chartLayer._filename = filename;
+    chartLayer._fileMB   = fileMB;
+
+    chartLayer.addTo(map);
+
+    progBar.style.width = '100%';
+    await new Promise(r => setTimeout(r, 300));
+    progWrap.classList.remove('visible');
+    statusEl.textContent = prevStatus;
+
+    buildLayersControl();
+
+  } catch(err) {
+    console.error('Chart load error:', err);
+    progWrap.classList.remove('visible');
+    statusEl.textContent = prevStatus;
+    console.warn('Could not auto-load chart:', err.message);
+  }
+}
+
 async function loadLocalChart() {
   let fileHandle;
   try {
@@ -963,6 +1026,9 @@ async function autoLoadTracks() {
   document.getElementById('date-to').value   = fmtDateInput(latestTime);
   document.getElementById('splash').classList.add('hidden');
   applyFilter();
+
+  // Auto-load the bundled chart as an overlay
+  loadChartFromUrl(DEFAULT_CHART_URL);
 }
 
 // ── Filter ────────────────────────────────────────────────────────

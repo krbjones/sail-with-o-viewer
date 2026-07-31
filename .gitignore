@@ -1,9 +1,11 @@
 # Sailties export copies (duplicates of the main tracks)
 sailties_export/
 
-# GeoTIFF chart files — large binaries, not suited for git
+# GeoTIFF chart files — large binaries excluded by default
 *.tif
 *.tiff
+# ...except the bundled chart
+!lac_deschennes_chart_1550_cog.tif
 
 # OS / editor junk
 .DS_Store
