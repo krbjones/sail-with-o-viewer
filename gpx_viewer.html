@@ -369,6 +369,12 @@
         <button class="btn-sm" id="btn-apply">Apply</button>
         <button class="btn-sm" id="btn-showall">Show All</button>
       </div>
+      <div class="date-row" style="margin-top:6px;">
+        <label for="chk-spatial" style="cursor:pointer;">
+          <input type="checkbox" id="chk-spatial" style="margin-right:5px;cursor:pointer;">
+          Limit to map view
+        </label>
+      </div>
       <div id="track-summary"></div>
     </div>
     <div id="tracklist-header">
@@ -456,8 +462,9 @@ function bearingDeg(lat1, lon1, lat2, lon2) {
 // ── State ─────────────────────────────────────────────────────────
 let tracks         = [];        // fully parsed track objects
 let visibleTracks  = [];
-let allTrackMeta   = [];        // [{file, startMs}] — from manifest, never re-fetched
+let allTrackMeta   = [];        // [{file, startMs, month, bbox}] — from manifest
 let loadedFiles    = new Set(); // filenames already fetched & parsed
+let loadedMonths   = new Set(); // month keys already fetched
 let selectedTrack = null;   // track whose time range the slider shows; null = full filter range
 let animTime = 0, animMin = 0, animMax = 0;
 let isPlaying = false, lastRealTime = null, rafId = null;
@@ -673,6 +680,14 @@ function injectChartButton() {
 
 // Re-inject button each time the panel opens
 map.on('overlayadd overlayremove baselayerchange', () => setTimeout(injectChartButton, 50));
+
+// Re-filter when map moves (only active when spatial checkbox is on)
+map.on('moveend zoomend', () => {
+  if (document.getElementById('chk-spatial')?.checked) applyFilter();
+});
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chk-spatial')?.addEventListener('change', applyFilter);
+});
 document.addEventListener('click', () => setTimeout(injectChartButton, 80));
 
 buildLayersControl();
@@ -965,39 +980,73 @@ function interpolate(track, t) {
 
 // ── Load folder ───────────────────────────────────────────────────
 // Fetch and parse GPX files that fall within [fromMs, toMs] and aren't loaded yet
-async function loadTracksForRange(fromMs, toMs) {
-  const needed = allTrackMeta.filter(m =>
-    m.startMs >= fromMs && m.startMs <= toMs && !loadedFiles.has(m.file)
-  );
-  if (!needed.length) return;
+// Convert a compact JSON track object into the app's track format
+function trackFromJSON({id, s, e, bbox, pts}) {
+  return {
+    id, filename: id,
+    startTime: s, endTime: e, duration: e - s,
+    bbox: { minLat: bbox[0], minLon: bbox[1], maxLat: bbox[2], maxLon: bbox[3] },
+    points: pts.map(([lat, lon, time, speed]) => ({lat, lon, time, speed})),
+    polylines: [], visible: true, shown: true
+  };
+}
 
+// True if track's bbox intersects Leaflet LatLngBounds
+function bboxIntersects(track, bounds) {
+  if (!track.bbox) return true;
+  return track.bbox.maxLat >= bounds.getSouth() &&
+         track.bbox.minLat <= bounds.getNorth() &&
+         track.bbox.maxLon >= bounds.getWest()  &&
+         track.bbox.minLon <= bounds.getEast();
+}
+
+async function loadTracksForRange(fromMs, toMs) {
+  const spatialOn = document.getElementById('chk-spatial')?.checked;
+  const bounds    = spatialOn ? map.getBounds() : null;
+
+  // Determine which months need fetching
+  const neededMonths = new Set(
+    allTrackMeta
+      .filter(m => {
+        if (m.startMs < fromMs || m.startMs > toMs) return false;
+        if (loadedMonths.has(m.month)) return false;
+        // Spatial pre-filter using manifest bbox
+        if (bounds && m.bbox) {
+          const [mnLat, mnLon, mxLat, mxLon] = m.bbox;
+          if (mxLat < bounds.getSouth() || mnLat > bounds.getNorth() ||
+              mxLon < bounds.getWest()  || mnLon > bounds.getEast()) return false;
+        }
+        return true;
+      })
+      .map(m => m.month)
+  );
+
+  if (!neededMonths.size) return;
+
+  const monthList = [...neededMonths].sort();
   const progWrap  = document.getElementById('progress-wrap');
   const progBar   = document.getElementById('progress-bar');
   const progLabel = document.getElementById('progress-label');
   progWrap.classList.add('visible');
   progBar.style.width = '0%';
 
-  const BATCH = 12;
   let done = 0;
-  for (let i = 0; i < needed.length; i += BATCH) {
-    const batch = needed.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
-      batch.map(async ({file}) => {
-        const r = await fetch(file);
-        if (!r.ok) throw new Error(r.status);
-        return parseGPX(await r.text(), file);
-      })
-    );
-    for (let j = 0; j < results.length; j++) {
-      const res = results[j];
-      if (res.status === 'fulfilled' && res.value) {
-        tracks.push(res.value);
-        loadedFiles.add(batch[j].file);
+  for (const month of monthList) {
+    progLabel.textContent = `Loading ${month}…`;
+    try {
+      const r = await fetch(`data/${month}.json`);
+      if (!r.ok) throw new Error(r.status);
+      const monthTracks = await r.json();
+      for (const t of monthTracks) {
+        if (!loadedFiles.has(t.id)) {
+          tracks.push(trackFromJSON(t));
+          loadedFiles.add(t.id);
+        }
       }
-      done++;
-    }
-    progBar.style.width = Math.round(done / needed.length * 100) + '%';
-    progLabel.textContent = `Loading ${done} / ${needed.length}`;
+    } catch(e) { console.warn(`Failed to load data/${month}.json:`, e); }
+    loadedMonths.add(month);
+    done++;
+    progBar.style.width = Math.round(done / monthList.length * 100) + '%';
     await new Promise(r => setTimeout(r, 0));
   }
 
@@ -1055,6 +1104,9 @@ function applyFilter() {
   const timeFrom = document.getElementById('time-from').value; // "HH:MM" or ""
   const timeTo   = document.getElementById('time-to').value;   // "HH:MM" or ""
 
+  const spatialOn = document.getElementById('chk-spatial')?.checked;
+  const bounds    = spatialOn ? map.getBounds() : null;
+
   selectedTrack = null;
   visibleTracks = tracks.filter(t => {
     // Date range check
@@ -1064,13 +1116,15 @@ function applyFilter() {
     if (timeFrom && timeTo) {
       const hhmm = localHHMM(t.startTime);
       if (timeFrom <= timeTo) {
-        // Normal range e.g. 09:00 – 18:00
         if (hhmm < timeFrom || hhmm > timeTo) return false;
       } else {
-        // Wraps midnight e.g. 22:00 – 06:00
         if (hhmm < timeFrom && hhmm > timeTo) return false;
       }
     }
+
+    // Spatial check — only if "Limit to map view" is checked
+    if (bounds && !bboxIntersects(t, bounds)) return false;
+
     return true;
   });
   renderTracks();

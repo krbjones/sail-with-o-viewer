@@ -122,16 +122,17 @@ for fname in gpx_files:
     month_key = dt_utc.strftime("%Y-%m")
 
     # Skip if month file already written and --skip-existing passed
+    # Compute bounding box from points
+    lats = [p[0] for p in pts]; lons = [p[1] for p in pts]
+    bbox = [round(min(lats),6), round(min(lons),6), round(max(lats),6), round(max(lons),6)]
+
     if skip_existing and os.path.exists(os.path.join(DATA_DIR, f"{month_key}.json")):
-        manifest.append({"file": fname, "startMs": start_ms, "month": month_key})
+        manifest.append({"file": fname, "startMs": start_ms, "month": month_key, "bbox": bbox})
         continue
     by_month.setdefault(month_key, []).append({
-        "id": fname,
-        "s":  start_ms,
-        "e":  end_ms,
-        "pts": pts
+        "id": fname, "s": start_ms, "e": end_ms, "bbox": bbox, "pts": pts
     })
-    manifest.append({"file": fname, "startMs": start_ms, "month": month_key})
+    manifest.append({"file": fname, "startMs": start_ms, "month": month_key, "bbox": bbox})
 
 # Write monthly JSON files
 print("Writing monthly bundles:")
