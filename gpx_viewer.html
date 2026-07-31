@@ -454,8 +454,10 @@ function bearingDeg(lat1, lon1, lat2, lon2) {
 }
 
 // ── State ─────────────────────────────────────────────────────────
-let tracks = [];
-let visibleTracks = [];
+let tracks         = [];        // fully parsed track objects
+let visibleTracks  = [];
+let allTrackMeta   = [];        // [{file, startMs}] — from manifest, never re-fetched
+let loadedFiles    = new Set(); // filenames already fetched & parsed
 let selectedTrack = null;   // track whose time range the slider shows; null = full filter range
 let animTime = 0, animMin = 0, animMax = 0;
 let isPlaying = false, lastRealTime = null, rafId = null;
@@ -962,72 +964,78 @@ function interpolate(track, t) {
 }
 
 // ── Load folder ───────────────────────────────────────────────────
-async function autoLoadTracks() {
-  tracks = []; visibleTracks = [];
-  trackLayer.clearLayers(); markerLayer.clearLayers();
-  document.getElementById('tracklist').innerHTML = '<div id="no-tracks">Loading…</div>';
+// Fetch and parse GPX files that fall within [fromMs, toMs] and aren't loaded yet
+async function loadTracksForRange(fromMs, toMs) {
+  const needed = allTrackMeta.filter(m =>
+    m.startMs >= fromMs && m.startMs <= toMs && !loadedFiles.has(m.file)
+  );
+  if (!needed.length) return;
 
   const progWrap  = document.getElementById('progress-wrap');
   const progBar   = document.getElementById('progress-bar');
   const progLabel = document.getElementById('progress-label');
-  const splashStatus = document.getElementById('splash-status');
   progWrap.classList.add('visible');
+  progBar.style.width = '0%';
 
-  // Fetch the manifest
-  let filenames;
-  try {
-    const r = await fetch('tracks.json');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    filenames = await r.json();
-  } catch(e) {
-    if (splashStatus) splashStatus.textContent = 'Could not load track index: ' + e.message;
-    progWrap.classList.remove('visible');
-    return;
-  }
-
-  if (splashStatus) splashStatus.textContent = `Loading ${filenames.length} tracks…`;
-
-  // Fetch GPX files in parallel batches
   const BATCH = 12;
-  let loaded = 0;
-  for (let i = 0; i < filenames.length; i += BATCH) {
-    const batch = filenames.slice(i, i + BATCH);
+  let done = 0;
+  for (let i = 0; i < needed.length; i += BATCH) {
+    const batch = needed.slice(i, i + BATCH);
     const results = await Promise.allSettled(
-      batch.map(async name => {
-        const r = await fetch(name);
+      batch.map(async ({file}) => {
+        const r = await fetch(file);
         if (!r.ok) throw new Error(r.status);
-        const text = await r.text();
-        return parseGPX(text, name);
+        return parseGPX(await r.text(), file);
       })
     );
-    for (const res of results) {
-      if (res.status === 'fulfilled' && res.value) tracks.push(res.value);
-      loaded++;
+    for (let j = 0; j < results.length; j++) {
+      const res = results[j];
+      if (res.status === 'fulfilled' && res.value) {
+        tracks.push(res.value);
+        loadedFiles.add(batch[j].file);
+      }
+      done++;
     }
-    progBar.style.width = Math.round(loaded / filenames.length * 100) + '%';
-    progLabel.textContent = `${loaded} / ${filenames.length}`;
+    progBar.style.width = Math.round(done / needed.length * 100) + '%';
+    progLabel.textContent = `Loading ${done} / ${needed.length}`;
     await new Promise(r => setTimeout(r, 0));
   }
 
+  tracks.sort((a,b) => a.startTime - b.startTime);
   progBar.style.width = '100%';
   await new Promise(r => setTimeout(r, 200));
   progWrap.classList.remove('visible');
-  document.getElementById('load-status').textContent = `${tracks.length} tracks loaded`;
+  document.getElementById('load-status').textContent =
+    `${loadedFiles.size} / ${allTrackMeta.length} tracks loaded`;
+}
 
-  if (!tracks.length) {
-    if (splashStatus) splashStatus.textContent = 'No valid GPX tracks found.';
+async function autoLoadTracks() {
+  const splashStatus = document.getElementById('splash-status');
+
+  // 1. Fetch manifest (metadata only — no GPX files yet)
+  try {
+    const r = await fetch('tracks.json');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    allTrackMeta = await r.json(); // [{file, startMs}]
+  } catch(e) {
+    if (splashStatus) splashStatus.textContent = 'Could not load track index: ' + e.message;
     return;
   }
-  tracks.sort((a,b) => a.startTime - b.startTime);
 
-  const latestTime = tracks[tracks.length-1].startTime;
-  const weekAgo    = latestTime - 7 * 24 * 60 * 60 * 1000;
+  // 2. Set default date range: latest 7 days in the dataset
+  const latestMs = Math.max(...allTrackMeta.map(m => m.startMs));
+  const weekAgo  = latestMs - 7 * 24 * 60 * 60 * 1000;
   document.getElementById('date-from').value = fmtDateInput(weekAgo);
-  document.getElementById('date-to').value   = fmtDateInput(latestTime);
+  document.getElementById('date-to').value   = fmtDateInput(latestMs);
+
+  // 3. Load only tracks in that window
+  if (splashStatus) splashStatus.textContent = 'Loading recent tracks…';
+  await loadTracksForRange(weekAgo, latestMs);
+
   document.getElementById('splash').classList.add('hidden');
   applyFilter();
 
-  // Auto-load the bundled chart as an overlay
+  // 4. Auto-load the bundled chart as an overlay
   loadChartFromUrl(DEFAULT_CHART_URL);
 }
 
@@ -1326,7 +1334,14 @@ const togglePlay = () => isPlaying ? stopAnim() : startAnim();
 // ── Wiring ────────────────────────────────────────────────────────
 // Auto-load tracks on startup
 autoLoadTracks();
-document.getElementById('btn-apply').onclick   = applyFilter;
+document.getElementById('btn-apply').onclick   = async () => {
+  const fromMs = document.getElementById('date-from').value
+    ? new Date(document.getElementById('date-from').value + 'T00:00:00').getTime() : 0;
+  const toMs   = document.getElementById('date-to').value
+    ? new Date(document.getElementById('date-to').value   + 'T23:59:59').getTime() : Infinity;
+  await loadTracksForRange(fromMs, toMs);
+  applyFilter();
+};
 document.getElementById('btn-showall').onclick = () => {
   if (!tracks.length) return;
   document.getElementById('date-from').value = fmtDateInput(tracks[0].startTime);
