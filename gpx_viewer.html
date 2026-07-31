@@ -467,6 +467,10 @@ let animSpeed = 300000;  // ms of track-time per second of real-time
 // ── Map ───────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: true }).setView([45.4, -75.7], 10);
 
+// Custom pane so the chart always renders above track polylines (overlayPane z=400)
+map.createPane('chartPane');
+map.getPane('chartPane').style.zIndex = 450;
+
 // ── Basemaps ──────────────────────────────────────────────────────
 const basemapStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
@@ -680,6 +684,7 @@ async function loadChartFromUrl(url) {
     chartLayer = new GeoRasterLayer({
       georaster,
       opacity: 1,
+      pane: 'chartPane',
       resolution: tileRes,
       pixelValuesToColorFn: chartPixelFn
     });
