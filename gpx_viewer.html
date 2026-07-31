@@ -506,7 +506,7 @@ const overlayOceanRef = L.tileLayer(
 });
 
 // Start with Ocean/Bathymetry as default
-basemapOcean.addTo(map);
+basemapSatellite.addTo(map);
 overlayNautical.addTo(map);
 
 // ── Layers control (rebuilt when chart loads) ─────────────────────
@@ -514,7 +514,7 @@ let layersControl  = null;
 let chartLayer     = null;
 let chartGeoRaster = null;   // keep parsed georaster so we can rebuild cheaply
 let chartBgMode    = 'white'; // 'white' | 'black' | 'nodata' | 'none'
-let activeBasemap  = basemapOcean;
+let activeBasemap  = basemapSatellite;
 
 // Per-pixel colour function — reads chartBgMode at render time so redraw() picks up changes
 function chartPixelFn(vals) {
@@ -1084,8 +1084,7 @@ async function autoLoadTracks() {
   document.getElementById('splash').classList.add('hidden');
   applyFilter();
 
-  // 4. Auto-load the bundled chart as an overlay
-  loadChartFromUrl(DEFAULT_CHART_URL);
+  // Chart available via layers panel — load manually if needed
 }
 
 // ── Filter ────────────────────────────────────────────────────────
