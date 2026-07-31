@@ -30,7 +30,7 @@
     }
     #header h1 { font-size: 15px; font-weight: 600; color: #cdd6f4; }
     #header .subtitle { font-size: 12px; color: #6c7086; }
-    #btn-open {
+    #btn-open-unused {
       margin-left: auto;
       background: #89b4fa;
       color: #1e1e2e;
@@ -41,7 +41,7 @@
       font-weight: 600;
       cursor: pointer;
     }
-    #btn-open:hover { background: #b4d0fb; }
+    #btn-open-unused:hover { background: #b4d0fb; }
     #load-status { font-size: 12px; color: #6c7086; min-width: 140px; }
     #progress-wrap { display: none; align-items: center; gap: 8px; flex: 1; max-width: 280px; }
     #progress-wrap.visible { display: flex; }
@@ -326,23 +326,21 @@
 
 <div id="header">
   <div>
-    <h1>⛵ GPX Track Viewer</h1>
+    <h1>⛵ Sail with O Viewer</h1>
     <div class="subtitle">Marine tracks</div>
   </div>
   <div id="progress-wrap">
     <div id="progress-bar-bg"><div id="progress-bar"></div></div>
     <span id="progress-label">Loading…</span>
   </div>
-  <div id="load-status">No folder loaded</div>
-  <button id="btn-open">Open GPX Folder</button>
+  <div id="load-status"></div>
 </div>
 
 <div id="main">
   <div id="splash">
-    <div class="splash-icon">🗺️</div>
-    <h2>GPX Track Viewer</h2>
-    <p>Open your GPX folder to load tracks. Use the date filter and timeline to explore your sailing history.</p>
-    <button id="splash-btn">Open GPX Folder</button>
+    <div class="splash-icon">⛵</div>
+    <h2>Sail with O Viewer</h2>
+    <p id="splash-status">Loading tracks…</p>
   </div>
 
   <div id="sidebar">
@@ -901,36 +899,51 @@ function interpolate(track, t) {
 }
 
 // ── Load folder ───────────────────────────────────────────────────
-async function openFolder() {
-  let dirHandle;
-  try { dirHandle = await window.showDirectoryPicker({ mode:'read' }); }
-  catch(e) { if (e.name !== 'AbortError') alert('Could not open folder: ' + e.message); return; }
-
+async function autoLoadTracks() {
   tracks = []; visibleTracks = [];
   trackLayer.clearLayers(); markerLayer.clearLayers();
   document.getElementById('tracklist').innerHTML = '<div id="no-tracks">Loading…</div>';
 
-  const gpxFiles = [];
-  for await (const e of dirHandle.values()) {
-    if (e.kind === 'file' && e.name.endsWith('.gpx')) gpxFiles.push(e);
-  }
-  if (!gpxFiles.length) { alert('No GPX files found.'); return; }
-
   const progWrap  = document.getElementById('progress-wrap');
   const progBar   = document.getElementById('progress-bar');
   const progLabel = document.getElementById('progress-label');
+  const splashStatus = document.getElementById('splash-status');
   progWrap.classList.add('visible');
 
-  for (let i = 0; i < gpxFiles.length; i++) {
-    progBar.style.width = Math.round(i/gpxFiles.length*100) + '%';
-    progLabel.textContent = `${i+1} / ${gpxFiles.length}`;
-    try {
-      const file  = await gpxFiles[i].getFile();
-      const text  = await file.text();
-      const track = parseGPX(text, gpxFiles[i].name);
-      if (track) tracks.push(track);
-    } catch(e) { console.warn(gpxFiles[i].name, e); }
-    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+  // Fetch the manifest
+  let filenames;
+  try {
+    const r = await fetch('tracks.json');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    filenames = await r.json();
+  } catch(e) {
+    if (splashStatus) splashStatus.textContent = 'Could not load track index: ' + e.message;
+    progWrap.classList.remove('visible');
+    return;
+  }
+
+  if (splashStatus) splashStatus.textContent = `Loading ${filenames.length} tracks…`;
+
+  // Fetch GPX files in parallel batches
+  const BATCH = 12;
+  let loaded = 0;
+  for (let i = 0; i < filenames.length; i += BATCH) {
+    const batch = filenames.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async name => {
+        const r = await fetch(name);
+        if (!r.ok) throw new Error(r.status);
+        const text = await r.text();
+        return parseGPX(text, name);
+      })
+    );
+    for (const res of results) {
+      if (res.status === 'fulfilled' && res.value) tracks.push(res.value);
+      loaded++;
+    }
+    progBar.style.width = Math.round(loaded / filenames.length * 100) + '%';
+    progLabel.textContent = `${loaded} / ${filenames.length}`;
+    await new Promise(r => setTimeout(r, 0));
   }
 
   progBar.style.width = '100%';
@@ -938,7 +951,10 @@ async function openFolder() {
   progWrap.classList.remove('visible');
   document.getElementById('load-status').textContent = `${tracks.length} tracks loaded`;
 
-  if (!tracks.length) { alert('No valid GPX tracks found.'); return; }
+  if (!tracks.length) {
+    if (splashStatus) splashStatus.textContent = 'No valid GPX tracks found.';
+    return;
+  }
   tracks.sort((a,b) => a.startTime - b.startTime);
 
   document.getElementById('date-from').value = fmtDateInput(tracks[0].startTime);
@@ -1240,8 +1256,8 @@ function stopAnim() {
 const togglePlay = () => isPlaying ? stopAnim() : startAnim();
 
 // ── Wiring ────────────────────────────────────────────────────────
-document.getElementById('btn-open').onclick    = openFolder;
-document.getElementById('splash-btn').onclick  = openFolder;
+// Auto-load tracks on startup
+autoLoadTracks();
 document.getElementById('btn-apply').onclick   = applyFilter;
 document.getElementById('btn-showall').onclick = () => {
   if (!tracks.length) return;

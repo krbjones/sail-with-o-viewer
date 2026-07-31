@@ -1,5 +1,4 @@
-# GPX track files — excluded from repo (personal data, large volume)
-*.gpx
+# Sailties export copies (duplicates of the main tracks)
 sailties_export/
 
 # GeoTIFF chart files — large binaries, not suited for git
