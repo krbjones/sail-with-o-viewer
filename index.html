@@ -369,12 +369,6 @@
         <button class="btn-sm" id="btn-apply">Apply</button>
         <button class="btn-sm" id="btn-showall">Show All</button>
       </div>
-      <div class="date-row" style="margin-top:6px;">
-        <label for="chk-spatial" style="cursor:pointer;">
-          <input type="checkbox" id="chk-spatial" style="margin-right:5px;cursor:pointer;">
-          Limit to map view
-        </label>
-      </div>
       <div id="track-summary"></div>
     </div>
     <div id="tracklist-header">
@@ -636,13 +630,8 @@ map.on('overlayadd', e => {
 });
 map.on('overlayremove baselayerchange', () => setTimeout(injectChartControls, 80));
 
-// Re-filter when map moves (only active when spatial checkbox is on)
-map.on('moveend zoomend', () => {
-  if (document.getElementById('chk-spatial')?.checked) applyFilter();
-});
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('chk-spatial')?.addEventListener('change', applyFilter);
-});
+// Re-filter track list whenever the map view changes
+map.on('moveend zoomend', applyFilter);
 document.addEventListener('click', () => setTimeout(injectChartControls, 80));
 
 buildLayersControl();
@@ -869,23 +858,10 @@ function bboxIntersects(track, bounds) {
 }
 
 async function loadTracksForRange(fromMs, toMs) {
-  const spatialOn = document.getElementById('chk-spatial')?.checked;
-  const bounds    = spatialOn ? map.getBounds() : null;
-
-  // Determine which months need fetching
+  // Determine which months need fetching (date range only)
   const neededMonths = new Set(
     allTrackMeta
-      .filter(m => {
-        if (m.startMs < fromMs || m.startMs > toMs) return false;
-        if (loadedMonths.has(m.month)) return false;
-        // Spatial pre-filter using manifest bbox
-        if (bounds && m.bbox) {
-          const [mnLat, mnLon, mxLat, mxLon] = m.bbox;
-          if (mxLat < bounds.getSouth() || mnLat > bounds.getNorth() ||
-              mxLon < bounds.getWest()  || mnLon > bounds.getEast()) return false;
-        }
-        return true;
-      })
+      .filter(m => m.startMs >= fromMs && m.startMs <= toMs && !loadedMonths.has(m.month))
       .map(m => m.month)
   );
 
@@ -971,15 +947,12 @@ function applyFilter() {
   const timeFrom = document.getElementById('time-from').value; // "HH:MM" or ""
   const timeTo   = document.getElementById('time-to').value;   // "HH:MM" or ""
 
-  const spatialOn = document.getElementById('chk-spatial')?.checked;
-  const bounds    = spatialOn ? map.getBounds() : null;
+  const bounds = map.getBounds();
 
   selectedTrack = null;
   visibleTracks = tracks.filter(t => {
-    // Date range check
     if (t.startTime > toMs || t.endTime < fromMs) return false;
 
-    // Time-of-day check (applied to track start time, local browser time)
     if (timeFrom && timeTo) {
       const hhmm = localHHMM(t.startTime);
       if (timeFrom <= timeTo) {
@@ -989,8 +962,7 @@ function applyFilter() {
       }
     }
 
-    // Spatial check — only if "Limit to map view" is checked
-    if (bounds && !bboxIntersects(t, bounds)) return false;
+    if (!bboxIntersects(t, bounds)) return false;
 
     return true;
   });
