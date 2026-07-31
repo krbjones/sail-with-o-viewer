@@ -550,6 +550,9 @@ function chartPixelFn(vals) {
   return `rgb(${c},${c},${c})`;
 }
 
+// Permanent layer group wrapper — always present in the layers control
+const chartOverlayGroup = L.layerGroup();
+
 function buildLayersControl() {
   if (layersControl) layersControl.remove();
 
@@ -558,128 +561,80 @@ function buildLayersControl() {
     'Satellite':          basemapSatellite,
     'Ocean / Bathymetry': basemapOcean,
   };
+  const overlays = {
+    'Nautical marks':      overlayNautical,
+    'Ocean labels':        overlayOceanRef,
+    '📄 Lac Deschênes Chart': chartOverlayGroup,
+  };
 
-  const overlays = { 'Nautical marks': overlayNautical, 'Ocean labels': overlayOceanRef };
-  if (chartLayer) overlays['📄 Local Chart'] = chartLayer;
-
-  layersControl = L.control.layers(
-    basemaps,
-    overlays,
-    { position: 'topright', collapsed: true }
-  ).addTo(map);
-
-  // Inject the "Load chart" button into the expanded panel
-  injectChartButton();
+  layersControl = L.control.layers(basemaps, overlays, { position: 'topright', collapsed: true }).addTo(map);
+  injectChartControls();
 }
 
-function injectChartButton() {
+// Inject opacity + transparency controls when chart is loaded and panel is open
+function injectChartControls() {
   setTimeout(() => {
     const panel = document.querySelector('.leaflet-control-layers-list');
-    if (!panel || document.getElementById('btn-load-chart')) return;
+    if (!panel || document.getElementById('chart-ctrl-wrap')) return;
+    if (!chartLayer) return; // nothing to control yet
 
     const wrap = document.createElement('div');
+    wrap.id = 'chart-ctrl-wrap';
     wrap.style.cssText = 'border-top:1px solid #313244;margin-top:6px;padding-top:8px;';
 
-    // Load / replace button
-    const btn = document.createElement('button');
-    btn.id = 'btn-load-chart';
-    btn.textContent = chartLayer ? '↺ Replace chart…' : '📂 Load local chart…';
-    btn.style.cssText = `
-      width:100%; padding:5px 8px; font-size:11px; font-weight:600;
-      background:#313244; color:#89b4fa; border:1px solid #45475a;
-      border-radius:5px; cursor:pointer; text-align:left;
-    `;
-    btn.onmouseover = () => btn.style.background = '#45475a';
-    btn.onmouseout  = () => btn.style.background = '#313244';
-    btn.onclick = e => { e.stopPropagation(); loadLocalChart(); };
-    wrap.appendChild(btn);
+    // Opacity slider
+    const opacityLabel = document.createElement('div');
+    opacityLabel.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:#a6adc8;margin-bottom:4px;';
+    opacityLabel.innerHTML = '<span>Chart opacity</span><span id="chart-opacity-pct">' + Math.round((chartLayer.options.opacity ?? 1) * 100) + '%</span>';
 
-    if (chartLayer) {
-      // Filename note
-      const note = document.createElement('div');
-      note.style.cssText = 'font-size:10px;color:#6c7086;margin-top:4px;margin-bottom:8px;';
-      note.textContent = '✓ ' + (chartLayer._filename || 'Chart loaded');
-      wrap.appendChild(note);
+    const slider = document.createElement('input');
+    slider.type = 'range'; slider.id = 'chart-opacity-slider';
+    slider.min = '0'; slider.max = '1'; slider.step = '0.05';
+    slider.value = String(chartLayer.options.opacity ?? 1);
+    slider.style.cssText = 'width:100%;-webkit-appearance:none;height:4px;background:#313244;border-radius:2px;outline:none;cursor:pointer;';
+    slider.oninput = e => {
+      e.stopPropagation();
+      const v = parseFloat(e.target.value);
+      chartLayer.setOpacity(v);
+      document.getElementById('chart-opacity-pct').textContent = Math.round(v * 100) + '%';
+    };
 
-      // Opacity slider
-      const opacityWrap = document.createElement('div');
-      opacityWrap.style.cssText = 'margin-top:2px;';
+    // Transparency mode
+    const bgLabel = document.createElement('div');
+    bgLabel.style.cssText = 'font-size:10px;color:#a6adc8;margin-top:8px;margin-bottom:4px;';
+    bgLabel.textContent = 'Transparent background';
 
-      const opacityLabel = document.createElement('div');
-      opacityLabel.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:#a6adc8;margin-bottom:4px;';
-      opacityLabel.innerHTML = '<span>Chart opacity</span><span id="chart-opacity-pct">100%</span>';
+    const bgSelect = document.createElement('select');
+    bgSelect.id = 'chart-bg-mode';
+    bgSelect.style.cssText = 'width:100%;padding:4px 6px;font-size:11px;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:5px;cursor:pointer;outline:none;';
+    [['white','White background'],['black','Black background'],['nodata','NoData value only'],['none','None (show all)']].forEach(([val, lbl]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = lbl;
+      if (val === chartBgMode) opt.selected = true;
+      bgSelect.appendChild(opt);
+    });
+    bgSelect.onchange = e => {
+      e.stopPropagation();
+      chartBgMode = e.target.value;
+      if (chartLayer) chartLayer.updateColors();
+    };
 
-      const slider = document.createElement('input');
-      slider.type  = 'range';
-      slider.id    = 'chart-opacity-slider';
-      slider.min   = '0'; slider.max = '1'; slider.step = '0.05';
-      slider.value = String(chartLayer.options.opacity ?? 1);
-      slider.style.cssText = `
-        width:100%; -webkit-appearance:none; height:4px;
-        background:#313244; border-radius:2px; outline:none; cursor:pointer;
-      `;
-      slider.oninput = e => {
-        e.stopPropagation();
-        const v = parseFloat(e.target.value);
-        chartLayer.setOpacity(v);
-        document.getElementById('chart-opacity-pct').textContent = Math.round(v * 100) + '%';
-      };
-
-      opacityWrap.appendChild(opacityLabel);
-      opacityWrap.appendChild(slider);
-      wrap.appendChild(opacityWrap);
-
-      // Sync pct label on open
-      setTimeout(() => {
-        const pct = document.getElementById('chart-opacity-pct');
-        if (pct) pct.textContent = Math.round((chartLayer.options.opacity ?? 1) * 100) + '%';
-      }, 10);
-
-      // Transparency mode selector
-      const bgWrap = document.createElement('div');
-      bgWrap.style.cssText = 'margin-top:8px;';
-
-      const bgLabel = document.createElement('div');
-      bgLabel.style.cssText = 'font-size:10px;color:#a6adc8;margin-bottom:4px;';
-      bgLabel.textContent = 'Transparent background';
-
-      const bgSelect = document.createElement('select');
-      bgSelect.id = 'chart-bg-mode';
-      bgSelect.style.cssText = `
-        width:100%; padding:4px 6px; font-size:11px;
-        background:#313244; color:#cdd6f4; border:1px solid #45475a;
-        border-radius:5px; cursor:pointer; outline:none;
-      `;
-      const bgOptions = [
-        { value: 'white',  label: 'White background' },
-        { value: 'black',  label: 'Black background' },
-        { value: 'nodata', label: 'NoData value only' },
-        { value: 'none',   label: 'None (show all)' },
-      ];
-      bgOptions.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o.value;
-        opt.textContent = o.label;
-        if (o.value === chartBgMode) opt.selected = true;
-        bgSelect.appendChild(opt);
-      });
-      bgSelect.onchange = e => {
-        e.stopPropagation();
-        chartBgMode = e.target.value;
-        if (chartLayer) chartLayer.updateColors();
-      };
-
-      bgWrap.appendChild(bgLabel);
-      bgWrap.appendChild(bgSelect);
-      wrap.appendChild(bgWrap);
-    }
-
+    wrap.appendChild(opacityLabel);
+    wrap.appendChild(slider);
+    wrap.appendChild(bgLabel);
+    wrap.appendChild(bgSelect);
     panel.appendChild(wrap);
-  }, 50);
+  }, 80);
 }
 
-// Re-inject button each time the panel opens
-map.on('overlayadd overlayremove baselayerchange', () => setTimeout(injectChartButton, 50));
+// Lazy-load chart when user enables it for the first time
+map.on('overlayadd', e => {
+  if (e.layer === chartOverlayGroup && !chartLayer) {
+    loadChartFromUrl('lac_deschennes_chart_1550_cog.tif');
+  }
+  setTimeout(injectChartControls, 80);
+});
+map.on('overlayremove baselayerchange', () => setTimeout(injectChartControls, 80));
 
 // Re-filter when map moves (only active when spatial checkbox is on)
 map.on('moveend zoomend', () => {
@@ -693,7 +648,6 @@ document.addEventListener('click', () => setTimeout(injectChartButton, 80));
 buildLayersControl();
 
 // ── Load local GeoTIFF chart ──────────────────────────────────────
-const DEFAULT_CHART_URL = 'lac_deschennes_chart_1550_cog.tif';
 
 async function loadChartFromUrl(url) {
   const statusEl  = document.getElementById('load-status');
@@ -739,108 +693,22 @@ async function loadChartFromUrl(url) {
     chartLayer._filename = filename;
     chartLayer._fileMB   = fileMB;
 
-    chartLayer.addTo(map);
+    // Add into the overlay group (which is already in the layers control)
+    chartOverlayGroup.clearLayers();
+    chartOverlayGroup.addLayer(chartLayer);
 
     progBar.style.width = '100%';
     await new Promise(r => setTimeout(r, 300));
     progWrap.classList.remove('visible');
     statusEl.textContent = prevStatus;
 
-    buildLayersControl();
+    injectChartControls();
 
   } catch(err) {
     console.error('Chart load error:', err);
     progWrap.classList.remove('visible');
     statusEl.textContent = prevStatus;
-    console.warn('Could not auto-load chart:', err.message);
-  }
-}
-
-async function loadLocalChart() {
-  let fileHandle;
-  try {
-    [fileHandle] = await window.showOpenFilePicker({
-      types: [{ description: 'GeoTIFF chart', accept: { 'image/tiff': ['.tif', '.tiff'] } }],
-      multiple: false
-    });
-  } catch(e) { return; }
-
-  const statusEl  = document.getElementById('load-status');
-  const progWrap  = document.getElementById('progress-wrap');
-  const progBar   = document.getElementById('progress-bar');
-  const progLabel = document.getElementById('progress-label');
-  const prevStatus = statusEl.textContent;
-
-  statusEl.textContent = '';
-  progWrap.classList.add('visible');
-  progBar.style.width = '10%';
-  progLabel.textContent = 'Reading chart…';
-
-  try {
-    const file = await fileHandle.getFile();
-    const fileMB = (file.size / 1024 / 1024).toFixed(1);
-
-    // Warn if very large and not a COG
-    const isCOG = file.name.toLowerCase().includes('cog');
-    if (file.size > 50 * 1024 * 1024 && !isCOG) {
-      const proceed = confirm(
-        `This file is ${fileMB} MB. Large un-pyramided TIFFs render slowly.\n\n` +
-        `For best performance, convert it to a COG first using:\n` +
-        `  python convert_to_cog.py "${file.name}"\n\n` +
-        `Load anyway?`
-      );
-      if (!proceed) {
-        progWrap.classList.remove('visible');
-        statusEl.textContent = prevStatus;
-        return;
-      }
-    }
-
-    progBar.style.width = '30%';
-    progLabel.textContent = `Loading ${fileMB} MB…`;
-    await new Promise(r => setTimeout(r, 0));  // let UI update
-
-    const arrayBuffer = await file.arrayBuffer();
-
-    progBar.style.width = '60%';
-    progLabel.textContent = 'Parsing GeoTIFF…';
-    await new Promise(r => setTimeout(r, 0));
-
-    const georaster = await parseGeoraster(arrayBuffer);
-
-    progBar.style.width = '85%';
-    progLabel.textContent = 'Building layer…';
-    await new Promise(r => setTimeout(r, 0));
-
-    if (chartLayer) map.removeLayer(chartLayer);
-
-    chartGeoRaster = georaster;
-    const tileRes  = file.size > 30 * 1024 * 1024 ? 128 : 256;
-
-    chartLayer = new GeoRasterLayer({
-      georaster,
-      opacity: 1,
-      resolution: tileRes,
-      pixelValuesToColorFn: chartPixelFn
-    });
-    chartLayer._filename = file.name;
-    chartLayer._fileMB   = fileMB;
-
-    chartLayer.addTo(map);
-    map.fitBounds(chartLayer.getBounds());
-
-    progBar.style.width = '100%';
-    await new Promise(r => setTimeout(r, 300));
-    progWrap.classList.remove('visible');
-    statusEl.textContent = prevStatus;
-
-    buildLayersControl();
-
-  } catch(err) {
-    console.error('Chart load error:', err);
-    progWrap.classList.remove('visible');
-    statusEl.textContent = prevStatus;
-    alert('Could not load chart: ' + err.message);
+    console.warn('Could not load chart:', err.message);
   }
 }
 
