@@ -3,8 +3,8 @@ import { $, el } from '../core/dom.js';
 import { fmtTime, fmtDateTime, fmtDuration } from '../core/format.js';
 import { map } from '../map/mapSetup.js';
 import { bboxIntersects } from '../core/geo.js';
-import { zoomToTrack, setTrackShown } from '../map/trackRenderer.js';
-import { setActiveChangeHandler, updateMarkers } from '../map/markerRenderer.js';
+import { zoomToTrack, setTrackShown, setActiveChangeHandler, updateTrackStyles } from '../map/trackRenderer.js';
+import { updateMarkers } from '../map/markerRenderer.js';
 import { stopAnim, updateAnimRange, setAnimTime, refreshAnim } from './animBar.js';
 
 /** trackId → row element, so the animation loop never needs querySelector. */
@@ -21,9 +21,10 @@ function setShown(track, shown) {
   }
 }
 
-/** All / None buttons — one marker refresh for the whole batch. */
+/** All / None buttons — one refresh for the whole batch. */
 export function setAllShown(shown) {
   for (const track of state.visibleTracks) setShown(track, shown);
+  updateTrackStyles();
   updateMarkers();
 }
 
@@ -46,7 +47,12 @@ function selectTrack(track) {
 function buildRow(track) {
   const checkbox = el('input', {
     type: 'checkbox', class: 'track-cb', title: 'Show/hide track',
-    onchange: e => { e.stopPropagation(); setShown(track, e.target.checked); updateMarkers(); },
+    onchange: e => {
+      e.stopPropagation();
+      setShown(track, e.target.checked);
+      updateTrackStyles();
+      updateMarkers();
+    },
   });
   checkbox.checked = track.shown;
 

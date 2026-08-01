@@ -4,16 +4,34 @@ import { bearingDeg } from '../core/geo.js';
  * Convert a compact JSON track record from data/YYYY-MM.json into the app's
  * track format.
  *
- * Compact form: {id, s, e, bbox:[minLat,minLon,maxLat,maxLon], pts:[[lat,lon,timeMs,speedKts],…]}
+ * Compact form: {id, s, e, bbox, dist, maxSpd, avgSpd, movingMs,
+ *                pts:[[lat,lon,timeMs,speedKts],…]}
+ *
+ * Points are kept as parallel typed arrays rather than an array of objects.
+ * The full archive is ~1.9M points; as objects that is hundreds of megabytes of
+ * heap and a garbage-collection pause every time a filter changes.
+ *
+ * lat/lon and time stay Float64: latitude needs eight significant digits (a
+ * Float32 would round it to roughly a metre) and epoch milliseconds do not fit
+ * a Float32 at all. Only speed is narrow enough for Float32.
  */
-export function trackFromJSON({ id, s, e, bbox, pts }) {
-  const points = new Array(pts.length);
-  let maxSpeed = 0;
+export function trackFromJSON(rec) {
+  const { id, s, e, bbox, pts } = rec;
+  const n = pts.length;
 
-  for (let i = 0; i < pts.length; i++) {
-    const [lat, lon, time, speed] = pts[i];
-    points[i] = { lat, lon, time, speed };
-    if (speed > maxSpeed) maxSpeed = speed;   // loop, not Math.max(...) — arrays run to 100k+
+  const times  = new Float64Array(n);
+  const lats   = new Float64Array(n);
+  const lons   = new Float64Array(n);
+  const speeds = new Float32Array(n);
+
+  let maxFromPoints = 0;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    lats[i]   = p[0];
+    lons[i]   = p[1];
+    times[i]  = p[2];
+    speeds[i] = p[3];
+    if (p[3] > maxFromPoints) maxFromPoints = p[3];
   }
 
   return {
@@ -23,52 +41,59 @@ export function trackFromJSON({ id, s, e, bbox, pts }) {
     endTime:   e,
     duration:  e - s,
     bbox: bbox ? { minLat: bbox[0], minLon: bbox[1], maxLat: bbox[2], maxLon: bbox[3] } : null,
-    points,
-    maxSpeed,
-    polylines: [],
-    visible: true,
+
+    n, times, lats, lons, speeds,
+
+    // Stats come precomputed from build_tracks.py; older bundles without them
+    // fall back to what can be derived from the points.
+    maxSpeed: rec.maxSpd ?? maxFromPoints,
+    avgSpeed: rec.avgSpd ?? 0,
+    distance: rec.dist   ?? 0,
+    movingMs: rec.movingMs ?? 0,
+
+    /** One L.Polyline per speed bucket (sparse — empty buckets stay undefined). */
+    bucketLines: [],
     shown: true,
+    _activeState: undefined,
   };
 }
 
-/** Bearing across a pair of points, 0 when they coincide. */
-function segmentBearing(p1, p2) {
-  return (p1.lat !== p2.lat || p1.lon !== p2.lon)
-    ? bearingDeg(p1.lat, p1.lon, p2.lat, p2.lon)
-    : 0;
+/** Bearing between two indices, 0 when the points coincide. */
+function bearingAt(track, i, j) {
+  if (track.lats[i] === track.lats[j] && track.lons[i] === track.lons[j]) return 0;
+  return bearingDeg(track.lats[i], track.lons[i], track.lats[j], track.lons[j]);
 }
 
 /**
  * Position, speed and bearing of a track at time `t`, clamped to its range.
  * Always returns the full shape including `bearing` — the endpoints borrow the
- * heading of their adjacent segment rather than returning a bare track point.
+ * heading of their adjacent segment.
  */
 export function interpolate(track, t) {
-  const pts  = track.points;
-  const last = pts.length - 1;
+  const { times, lats, lons, speeds, n } = track;
+  const last = n - 1;
 
-  if (t <= pts[0].time) {
-    const p = pts[0];
-    return { lat: p.lat, lon: p.lon, speed: p.speed, bearing: segmentBearing(p, pts[Math.min(1, last)]) };
+  if (t <= times[0]) {
+    return { lat: lats[0], lon: lons[0], speed: speeds[0], bearing: bearingAt(track, 0, Math.min(1, last)) };
   }
-  if (t >= pts[last].time) {
-    const p = pts[last];
-    return { lat: p.lat, lon: p.lon, speed: p.speed, bearing: segmentBearing(pts[Math.max(0, last - 1)], p) };
+  if (t >= times[last]) {
+    return {
+      lat: lats[last], lon: lons[last], speed: speeds[last],
+      bearing: bearingAt(track, Math.max(0, last - 1), last),
+    };
   }
 
   let lo = 0, hi = last;
   while (hi - lo > 1) {
     const m = (lo + hi) >> 1;
-    if (pts[m].time <= t) lo = m; else hi = m;
+    if (times[m] <= t) lo = m; else hi = m;
   }
 
-  const p1 = pts[lo], p2 = pts[hi];
-  const f  = (t - p1.time) / (p2.time - p1.time);
-
+  const f = (t - times[lo]) / (times[hi] - times[lo]);
   return {
-    lat:     p1.lat   + f * (p2.lat   - p1.lat),
-    lon:     p1.lon   + f * (p2.lon   - p1.lon),
-    speed:   p1.speed + f * (p2.speed - p1.speed),
-    bearing: segmentBearing(p1, p2),
+    lat:     lats[lo]   + f * (lats[hi]   - lats[lo]),
+    lon:     lons[lo]   + f * (lons[hi]   - lons[lo]),
+    speed:   speeds[lo] + f * (speeds[hi] - speeds[lo]),
+    bearing: bearingAt(track, lo, hi),
   };
 }

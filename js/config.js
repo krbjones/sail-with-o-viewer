@@ -28,3 +28,5 @@ export const SLIDER_STEPS       = 10000;
 // ── Timing ────────────────────────────────────────────────────────
 export const VIEW_DEBOUNCE_MS   = 150;
 export const CHART_INJECT_DELAY = 80;
+/** How often the clock and slider are repainted during playback (markers run every frame). */
+export const UI_REFRESH_MS      = 100;

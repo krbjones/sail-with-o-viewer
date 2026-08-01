@@ -2,7 +2,8 @@ import { state } from '../core/store.js';
 import { $ } from '../core/dom.js';
 import { fmtDate, fmtTime, fmtDateTime } from '../core/format.js';
 import { updateMarkers } from '../map/markerRenderer.js';
-import { STEP_MS, SLIDER_STEPS } from '../config.js';
+import { updateTrackStyles } from '../map/trackRenderer.js';
+import { STEP_MS, SLIDER_STEPS, UI_REFRESH_MS } from '../config.js';
 
 export function setAnimTime(t) {
   state.animTime = Math.max(state.animMin, Math.min(state.animMax, t));
@@ -75,6 +76,7 @@ export function updateAnimRange() {
 export function refreshAnim() {
   updateSlider();
   updateTimeDisplay();
+  updateTrackStyles();
   updateMarkers();
 }
 
@@ -86,13 +88,25 @@ export function seekTo(t) {
 }
 
 // ── Playback loop ─────────────────────────────────────────────────
+let lastUiRefresh = 0;
+
 function animStep(realNow) {
   if (!state.isPlaying) return;
 
   if (state.lastRealTime !== null) {
     const trackDelta = (realNow - state.lastRealTime) * state.animSpeed / 1000;
     setAnimTime(state.animTime + trackDelta);
-    refreshAnim();
+
+    // Boats move every frame; the clock, slider and active-track highlighting
+    // only need to keep up with the eye, and each one touches layout.
+    updateTrackStyles();
+    updateMarkers();
+    if (realNow - lastUiRefresh >= UI_REFRESH_MS) {
+      lastUiRefresh = realNow;
+      updateSlider();
+      updateTimeDisplay();
+    }
+
     if (state.animTime >= state.animMax) { stopAnim(); return; }
   }
 
@@ -110,10 +124,13 @@ export function startAnim() {
 }
 
 export function stopAnim() {
+  const wasPlaying = state.isPlaying;
   state.isPlaying = false;
   if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
   $('#btn-play').textContent = '▶';
   state.lastRealTime = null;
+  // Catch the throttled controls up to where playback actually stopped.
+  if (wasPlaying) { updateSlider(); updateTimeDisplay(); }
 }
 
 export const togglePlay = () => state.isPlaying ? stopAnim() : startAnim();
@@ -130,6 +147,7 @@ export function initAnimBar() {
     stopAnim();
     setAnimTime(parseInt(e.target.value, 10));
     updateTimeDisplay();
+    updateTrackStyles();
     updateMarkers();
   };
 

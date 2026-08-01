@@ -2,6 +2,7 @@ import { state } from '../core/store.js';
 import { $ } from '../core/dom.js';
 import { localHHMM, fmtDateInput } from '../core/format.js';
 import { renderTracks } from '../map/trackRenderer.js';
+import { clearMarkers } from '../map/markerRenderer.js';
 import { renderForView, setAllShown } from './trackList.js';
 import { updateAnimRange } from './animBar.js';
 import { loadTracksForRange, manifestRange } from '../data/trackLoader.js';
@@ -43,6 +44,7 @@ export function applyFilter() {
 
   // renderTracks fits the map first, so the extent-filtered list below is
   // computed against the final view rather than the previous one.
+  clearMarkers();
   renderTracks();
   renderForView();
   updateAnimRange();
