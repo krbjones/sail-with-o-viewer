@@ -12,6 +12,8 @@ export const CHART_URL    = 'lac_deschennes_chart_1550_cog.tif';
 export const DB_NAME    = 'sailwitho';
 /** v2 stores points as typed arrays rather than nested [lat,lon,t,spd] arrays. */
 export const DB_VERSION = 2;
+/** Give up opening the database after this and run without a cache. */
+export const DB_OPEN_TIMEOUT_MS = 4000;
 
 // ── Map defaults ──────────────────────────────────────────────────
 export const DEFAULT_CENTER = [45.4, -75.7];

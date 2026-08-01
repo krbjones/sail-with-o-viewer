@@ -1,4 +1,4 @@
-import { DB_NAME, DB_VERSION } from '../config.js';
+import { DB_NAME, DB_VERSION, DB_OPEN_TIMEOUT_MS } from '../config.js';
 
 /**
  * Thin IndexedDB wrapper.
@@ -21,9 +21,34 @@ function openDB() {
   dbPromise = new Promise(resolve => {
     if (!('indexedDB' in window)) { resolve(null); return; }
 
+    // An open request can hang indefinitely — another tab mid-upgrade, a
+    // half-finished deleteDatabase, some private-browsing modes. Boot awaits
+    // this, so without a deadline the app sits on the splash screen forever.
+    // Giving up just means running without a cache.
+    let settled = false;
+
+    /**
+     * @param db        the connection, or null
+     * @param retryable true when the failure may not recur, in which case the
+     *                  memoised promise is cleared so a later call can try
+     *                  again. A slow open must not disable the cache for the
+     *                  whole session.
+     */
+    const finish = (db, retryable = false) => {
+      if (settled) return;
+      settled = true;
+      if (!db && retryable) dbPromise = null;
+      resolve(db);
+    };
+
+    setTimeout(() => {
+      if (!settled) console.warn('IndexedDB did not open in time; continuing without a cache for now.');
+      finish(null, true);
+    }, DB_OPEN_TIMEOUT_MS);
+
     let req;
     try { req = indexedDB.open(DB_NAME, DB_VERSION); }
-    catch { resolve(null); return; }
+    catch { finish(null); return; }
 
     req.onupgradeneeded = e => {
       const db = e.target.result;
@@ -49,9 +74,9 @@ function openDB() {
       }
     };
 
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => { console.warn('IndexedDB unavailable:', req.error); resolve(null); };
-    req.onblocked = () => resolve(null);
+    req.onsuccess = () => finish(req.result);
+    req.onerror   = () => { console.warn('IndexedDB unavailable:', req.error); finish(null); };
+    req.onblocked = () => { console.warn('IndexedDB is blocked by another tab.'); finish(null, true); };
   });
 
   return dbPromise;
