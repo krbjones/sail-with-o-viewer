@@ -68,10 +68,15 @@ function selectTrack(track) {
 
 function buildRow(track) {
   const checkbox = el('input', {
-    type: 'checkbox', class: 'track-cb', title: 'Show/hide track',
-    onchange: e => {
+    type: 'checkbox', class: 'track-cb', title: 'Show or hide this track',
+    // Handled on click rather than change: selecting a track re-renders the
+    // list, and if that happens first the checkbox is detached mid-click, so
+    // the browser skips the activation step that fires `change` and the toggle
+    // is silently lost. The row guard below stops that, and acting on click
+    // keeps this correct regardless of event ordering.
+    onclick: e => {
       e.stopPropagation();
-      setShown(track, e.target.checked);
+      setShown(track, e.currentTarget.checked);
       updateTrackStyles();
       updateMarkers();
     },
@@ -83,7 +88,12 @@ function buildRow(track) {
   const row = el('div', {
     class: 'track-item',
     'data-id': track.id,
-    onclick: () => selectTrack(track),
+    onclick: e => {
+      // Controls inside the row own their clicks. Selecting rebuilds the list,
+      // which would destroy the control the user is interacting with.
+      if (e.target.closest('input, button')) return;
+      selectTrack(track);
+    },
   }, [
     checkbox,
     dot,
