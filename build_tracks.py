@@ -212,16 +212,47 @@ def parse_gpx(filepath):
 FNAME_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})_\d{6}\.gpx$')
 
 
-def month_key(fname, start_ms):
+def first_time_ms(filepath):
     """
-    Group by *local* month. Track filenames already encode local start time
+    Timestamp of the first track point, read without parsing the whole file.
+    Used only for files whose name does not follow the archive convention.
+    """
+    try:
+        for event, elem in ET.iterparse(filepath, events=('end',)):
+            if elem.tag.split('}')[-1] != 'time' or not elem.text:
+                continue
+            try:
+                t_str = elem.text.strip().replace(' ', 'T')
+                if not t_str.endswith('Z'):
+                    t_str += 'Z'
+                return int(datetime.fromisoformat(t_str.replace('Z', '+00:00')).timestamp() * 1000)
+            except ValueError:
+                continue
+    except ET.ParseError:
+        pass
+    return None
+
+
+def month_key(fname, filepath=None):
+    """
+    Group by *local* month. Track filenames usually encode local start time
     ("2025-08-02_201002.gpx"), which is authoritative and independent of the
     build machine's timezone. A track starting at 20:10 local on Jul 31 is
     already Aug 1 in UTC and would otherwise land in the wrong bundle.
+
+    Loggers do not all agree on that format — one writes "2026-08-01_11-19-07"
+    and means the time the file was saved, not the time the track began. Rather
+    than trust an unfamiliar name, fall back to the first timestamp inside the
+    file. Do not fall back to "now" or to zero: an earlier version passed 0 here
+    and filed the track under 1969-12.
     """
     m = FNAME_RE.match(fname)
     if m:
         return f'{m.group(1)}-{m.group(2)}'
+
+    start_ms = first_time_ms(filepath) if filepath else None
+    if start_ms is None:
+        return None
     return datetime.fromtimestamp(start_ms / 1000).strftime('%Y-%m')
 
 
@@ -252,10 +283,18 @@ def main():
           f'{" (reusing already-parsed tracks)" if skip_existing else ""}\n')
 
     # Group by month up front so each bundle can be written and freed in turn —
-    # holding all 27 months of points in memory at once is gigabytes.
+    # holding every month's points in memory at once is gigabytes.
     files_by_month = {}
+    undated = []
     for fname in gpx_files:
-        files_by_month.setdefault(month_key(fname, 0), []).append(fname)
+        month = month_key(fname, os.path.join(FOLDER, fname))
+        if month is None:
+            undated.append(fname)
+            continue
+        files_by_month.setdefault(month, []).append(fname)
+
+    for fname in undated:
+        print(f'  SKIP (no readable timestamp): {fname}')
 
     print('Writing monthly bundles:')
     manifest = []
