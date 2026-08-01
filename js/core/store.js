@@ -20,6 +20,9 @@ export const state = {
   /** Track whose time range the slider shows; null = full filter range. */
   selectedTrack: null,
 
+  /** How track lines are coloured: 'speed' or 'sail' (point of sail). */
+  colorMode: 'speed',
+
   animTime: 0,
   animMin: 0,
   animMax: 0,

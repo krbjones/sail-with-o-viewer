@@ -2,10 +2,12 @@ import { map, trackLayer, lineRenderer } from './mapSetup.js';
 import { state } from '../core/store.js';
 import { speedBucket, unionBounds } from '../core/geo.js';
 import {
-  SPEED_COLORS, TRACK_OPACITY, TRACK_WEIGHT, VIEW_DEBOUNCE_MS,
+  SPEED_COLORS, UNKNOWN_COLOR, TRACK_OPACITY, TRACK_WEIGHT, VIEW_DEBOUNCE_MS,
   TRACK_ACTIVE_OPACITY, TRACK_ACTIVE_WEIGHT,
   TRACK_DIM_OPACITY,    TRACK_DIM_WEIGHT,
 } from '../config.js';
+import { POINTS_OF_SAIL, pointOfSailIndex } from '../data/wind.js';
+import { analysePolar } from '../data/polar.js';
 
 /** Called with (trackId, isActive) whenever a track crosses the animation cursor. */
 let onActiveChange = () => {};
@@ -23,19 +25,38 @@ export function isTrackActive(track, t) {
  * Consecutive runs share an endpoint so the coloured segments meet without
  * visible gaps — the same overlap the previous per-segment renderer used.
  */
-function bucketRuns(track) {
-  const { lats, lons, speeds, n } = track;
-  const runs = SPEED_COLORS.map(() => []);
+/** Colours for the current mode; the last entry is "no data" in sail mode. */
+export function paletteFor(mode) {
+  return mode === 'sail'
+    ? [...POINTS_OF_SAIL.map(p => p.color), UNKNOWN_COLOR]
+    : SPEED_COLORS;
+}
+
+/**
+ * Which colour band point i falls in.
+ * In sail mode a point with no usable wind or heading gets the trailing
+ * "unknown" band rather than being silently coloured as if it were known.
+ */
+function bandOf(track, i, mode, polar) {
+  if (mode !== 'sail') return speedBucket(track.speeds[i]);
+  if (!polar || !polar.twaValid[i]) return POINTS_OF_SAIL.length;
+  return pointOfSailIndex(polar.twa[i]);
+}
+
+function bucketRuns(track, mode) {
+  const { lats, lons, n } = track;
+  const polar = mode === 'sail' ? analysePolar(track) : null;
+  const runs = paletteFor(mode).map(() => []);
 
   // Build L.LatLng instances rather than [lat, lon] pairs, saving L.Polyline a
   // conversion pass over every point. Worth a few percent end to end; the bulk
   // of the render cost is Leaflet projecting and simplifying, not this loop.
   // Rendering the whole archive (~2M points) takes about 6 s, a month 0.7 s.
-  let bucket = speedBucket(speeds[0]);
+  let bucket = bandOf(track, 0, mode, polar);
   let run    = [L.latLng(lats[0], lons[0])];
 
   for (let i = 1; i < n; i++) {
-    const b  = speedBucket(speeds[i]);
+    const b  = bandOf(track, i, mode, polar);
     const ll = L.latLng(lats[i], lons[i]);
     run.push(ll);
 
@@ -70,13 +91,14 @@ export function renderTracks({ fit = true } = {}) {
     const opacity = track.shown ? TRACK_OPACITY : 0;
     const weight  = track.shown ? TRACK_WEIGHT  : 0;
 
-    const runs = bucketRuns(track);
+    const palette = paletteFor(state.colorMode);
+    const runs = bucketRuns(track, state.colorMode);
     for (let b = 0; b < runs.length; b++) {
       if (!runs[b].length) continue;
 
       const pl = L.polyline(runs[b], {
         renderer: lineRenderer,
-        color:    SPEED_COLORS[b],
+        color:    palette[b],
         weight,
         opacity,
       }).addTo(trackLayer);

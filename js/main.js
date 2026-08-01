@@ -5,14 +5,15 @@ import { VIEW_DEBOUNCE_MS } from './config.js';
 
 import { map } from './map/mapSetup.js';
 import { initLayers } from './map/layersControl.js';
-import { initLegend } from './map/legend.js';
+import { initLegend, enableColorModes, disableColorModes, setColorModeHandler } from './map/legend.js';
+import { renderTracks } from './map/trackRenderer.js';
 
 import { fetchManifest } from './data/manifest.js';
 import { loadWind } from './data/wind.js';
 import { initWindLayer } from './map/windLayer.js';
 import { loadTracksForRange, syncCache, loadLocalTracks } from './data/trackLoader.js';
 
-import { initAnimBar, seekTo } from './ui/animBar.js';
+import { initAnimBar, seekTo, refreshAnim } from './ui/animBar.js';
 import { initTrackList, renderForView, clearSelection, restoreSelection } from './ui/trackList.js';
 import { initFilterPanel, applyFilter, setRange, currentRange } from './ui/filterPanel.js';
 import { initStoragePanel, refreshStorageInfo } from './ui/storagePanel.js';
@@ -82,8 +83,14 @@ async function boot() {
   }
 
   // Wind is optional: 33 KB, and every feature that uses it degrades quietly
-  // if data/wind.json is absent.
-  if (await loadWind()) initWindLayer();
+  // if data/wind.json is absent. The colour-mode toggle only appears once
+  // there is wind to colour by.
+  if (await loadWind()) {
+    initWindLayer();
+    enableColorModes();
+  } else {
+    disableColorModes();
+  }
 
   hideSplash();
   applyFilter();
@@ -100,7 +107,9 @@ async function boot() {
 
 function init() {
   initLayers();
+  // Early, so its preferences are registered before boot's loadPrefs runs.
   initLegend();
+  setColorModeHandler(() => { renderTracks({ fit: false }); refreshAnim(); });
   initAnimBar();
   initTrackList();
   initFilterPanel();

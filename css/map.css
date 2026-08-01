@@ -26,6 +26,24 @@
 .legend-swatch { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; }
 .legend-row span { font-size: 11px; color: var(--text); }
 
+.legend-mode {
+  display: flex; gap: 3px; margin-top: 8px;
+  padding-top: 8px; border-top: 1px solid var(--surface);
+}
+.legend-mode button {
+  flex: 1; cursor: pointer;
+  font-size: 10px; font-weight: 600;
+  padding: 4px 6px;
+  border: 1px solid var(--surface-hi);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-mute);
+}
+.legend-mode button:hover { color: var(--text); }
+.legend-mode button.active {
+  background: var(--accent); border-color: var(--accent); color: var(--bg);
+}
+
 /* ── Speed callout above marker ── */
 .speed-callout-wrap {
   display: flex;

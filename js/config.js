@@ -2,6 +2,8 @@
 export const SPEED_THRESHOLDS = [0.5, 2, 4, 6, 8];   // knots
 export const SPEED_COLORS     = ['#FF0000', '#FFF000', '#00FF00', '#00FFFF', '#0000FF', '#191970'];
 export const SPEED_LABELS     = ['< 0.5', '0.5 – 2', '2 – 4', '4 – 6', '6 – 8', '8+'];
+/** Used where a point has no wind or heading to classify by. */
+export const UNKNOWN_COLOR    = '#45475a';
 
 // ── Data sources ──────────────────────────────────────────────────
 export const MANIFEST_URL = 'tracks.json';
