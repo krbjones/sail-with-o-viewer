@@ -11,3 +11,6 @@ sailties_export/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local Claude Code settings
+.claude/settings.local.json
