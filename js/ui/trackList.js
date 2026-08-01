@@ -6,6 +6,7 @@ import { bboxIntersects } from '../core/geo.js';
 import { zoomToTrack, setTrackShown, setActiveChangeHandler, updateTrackStyles } from '../map/trackRenderer.js';
 import { updateMarkers } from '../map/markerRenderer.js';
 import { stopAnim, updateAnimRange, setAnimTime, refreshAnim } from './animBar.js';
+import { deleteImported } from './importPanel.js';
 
 /** trackId → row element, so the animation loop never needs querySelector. */
 const rows = new Map();
@@ -66,12 +67,22 @@ function buildRow(track) {
     checkbox,
     dot,
     el('div', { class: 'track-info' }, [
-      el('div', { class: 'track-date', text: fmtDateTime(track.startTime) }),
+      el('div', { class: 'track-date' }, [
+        fmtDateTime(track.startTime),
+        track.source === 'local' ? el('span', { class: 'track-local-badge', text: 'LOCAL', title: 'Imported into this browser' }) : null,
+      ]),
       el('div', {
         class: 'track-meta',
         text: `${fmtTime(track.startTime)} · ${fmtDuration(track.duration)} · max ${track.maxSpeed.toFixed(1)} kts`,
       }),
     ]),
+    track.source === 'local'
+      ? el('button', {
+          class: 'track-delete', title: 'Remove this imported track',
+          text: '🗑',
+          onclick: e => { e.stopPropagation(); deleteImported(track); },
+        })
+      : null,
     el('button', {
       class: 'track-zoom', title: 'Zoom to track',
       text: '⊕',

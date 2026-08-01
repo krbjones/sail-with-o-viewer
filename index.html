@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/tracklist.css">
   <link rel="stylesheet" href="css/animbar.css">
   <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/import.css">
 </head>
 <body>
 
@@ -65,6 +66,20 @@
       <div class="storage-row">
         <span id="storage-info">Nothing cached yet.</span>
         <button class="btn-tiny hidden" id="btn-clear-cache" title="Remove downloaded track data from this browser">Clear</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h2>Add tracks</h2>
+      <div id="import-zone" tabindex="0" role="button" aria-label="Add GPX files">
+        <div class="import-icon">＋</div>
+        <div class="import-text">Drop GPX files here<br><span>or click to choose</span></div>
+      </div>
+      <input type="file" id="import-input" accept=".gpx,application/gpx+xml" multiple hidden>
+      <div id="import-log"></div>
+      <div class="import-note">
+        Imported tracks are stored in this browser only. To publish one for
+        everyone, add the file to the repo and run <code>build_tracks.py</code>.
       </div>
     </div>
 
