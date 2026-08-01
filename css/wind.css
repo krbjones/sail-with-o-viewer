@@ -1,15 +1,13 @@
+/* Placed by Leaflet as a bottom-left control, so no positioning here — only
+   the margin the surrounding control corner uses. */
 #wind-panel {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 1000;
   background: rgba(24,24,37,0.92);
   border: 1px solid var(--surface);
   border-radius: var(--radius-lg);
   padding: 8px 12px 9px;
   min-width: 132px;
   user-select: none;
-  pointer-events: auto;
+  cursor: default;
 }
 #wind-panel.wind-idle { opacity: 0.55; }
 
@@ -40,8 +38,7 @@
 .wind-sail:empty { display: none; }
 
 @media (max-width: 820px) {
-  /* Leave room for the hamburger and the zoom control. */
-  #wind-panel { top: 8px; left: 52px; padding: 6px 9px 7px; min-width: 0; }
+  #wind-panel { padding: 6px 9px 7px; min-width: 0; }
   .wind-title { display: none; }
   .wind-body  { gap: 7px; }
   .wind-arrow svg { width: 26px; height: 26px; }

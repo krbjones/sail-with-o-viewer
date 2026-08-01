@@ -58,3 +58,32 @@
 .spark-cursor { stroke: var(--active); stroke-width: 1.5; }
 
 .hist-label { fill: var(--text-mute); font-size: 6px; text-anchor: middle; }
+
+/* ── Points of sail ── */
+.sail-bar { width: 100%; height: 14px; display: block; border-radius: 3px; overflow: hidden; }
+.sail-key {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  font-size: 9px; font-weight: 600; margin-top: 4px;
+}
+
+/* ── Polar ── */
+.polar { max-width: 210px; margin: 2px auto 0; }
+.polar-ring  { fill: none; stroke: var(--surface-hi); stroke-width: 1; }
+.polar-spoke { stroke: var(--surface); stroke-width: 1; }
+.polar-tick  { fill: var(--text-mute); font-size: 7px; }
+.polar-angle { fill: var(--text-mute); font-size: 7px; dominant-baseline: middle; }
+.polar-max   { fill: none; stroke: var(--accent);  stroke-width: 1.6; stroke-linejoin: round; }
+.polar-avg   { fill: none; stroke: var(--success); stroke-width: 1.4; stroke-dasharray: 3 2; }
+
+.polar-key {
+  display: flex; gap: 10px; justify-content: center;
+  font-size: 9px; margin-top: 2px;
+}
+.polar-key .key-max  { color: var(--accent); font-weight: 600; }
+.polar-key .key-avg  { color: var(--success); font-weight: 600; }
+.polar-key .key-note { color: var(--text-mute); }
+
+.wind-caveat {
+  font-size: 9px; color: var(--text-mute); line-height: 1.45;
+  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--surface);
+}

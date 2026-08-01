@@ -1,4 +1,5 @@
-import { $, el } from '../core/dom.js';
+import { el } from '../core/dom.js';
+import { map } from './mapSetup.js';
 import { state } from '../core/store.js';
 import { windLoaded, windForTrack, trueWindAngle, pointOfSail, tackOf } from '../data/wind.js';
 import { interpolate } from '../data/trackModel.js';
@@ -38,7 +39,19 @@ export function initWindLayer() {
     sail,
   ]);
 
-  $('#main').appendChild(panel);
+  // A Leaflet control, not a child of #main. #main holds the sidebar as well as
+  // the map, so absolute positioning there put this on top of the filters.
+  // Leaflet also keeps clicks and drags on the panel from panning the map.
+  const WindControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd() {
+      L.DomEvent.disableClickPropagation(panel);
+      L.DomEvent.disableScrollPropagation(panel);
+      return panel;
+    },
+  });
+  new WindControl().addTo(map);
+
   refs = { arrow: arrow.querySelector('svg'), speed, gust, from, sail };
   updateWindPanel();
   return panel;

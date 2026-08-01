@@ -12,6 +12,8 @@ export const WIND_URL     = 'data/wind.json';
 // ── Wind ──────────────────────────────────────────────────────────
 /** Wind is hourly; refuse to interpolate across a gap wider than this. */
 export const MAX_WIND_GAP_MS = 2 * 3600000;
+/** Below this the boat is not under way, so it has no meaningful heading. */
+export const MOVING_MIN_KTS  = 0.5;
 
 // ── Local database ────────────────────────────────────────────────
 export const DB_NAME    = 'sailwitho';

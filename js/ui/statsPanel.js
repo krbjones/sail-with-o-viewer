@@ -3,6 +3,21 @@ import { state } from '../core/store.js';
 import { fmtDuration, fmtDateTime, fmtTime } from '../core/format.js';
 import { speedBucket } from '../core/geo.js';
 import { SPEED_COLORS, SPEED_LABELS } from '../config.js';
+import { POINTS_OF_SAIL, windForTrack } from '../data/wind.js';
+import { analysePolar } from '../data/polar.js';
+
+/** Mean wind over the track, sampled hourly. */
+function windSummary(polar, track) {
+  let sum = 0, n = 0, gustMax = 0;
+  for (let t = track.startTime; t <= track.endTime; t += 3600000) {
+    const w = windForTrack(track, t);
+    if (!w) continue;
+    sum += w.speed; n++;
+    if (w.gust != null && w.gust > gustMax) gustMax = w.gust;
+  }
+  if (!n) return '—';
+  return `${(sum / n).toFixed(1)} <small>kt${gustMax ? ', g' + gustMax.toFixed(0) : ''}</small>`;
+}
 
 /** Sparkline resolution — more columns than this is invisible at sidebar width. */
 const SPARK_COLS = 180;
@@ -99,6 +114,92 @@ function stat(label, value) {
   return `<div class="stat"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
 }
 
+const POLAR_R = 86;
+const POLAR_W = POLAR_R * 2 + 34;
+
+/**
+ * Boat speed against true wind angle, as half a polar diagram.
+ *
+ * Only the starboard half is drawn: port and starboard are the same boat, so
+ * mirroring would double the ink without adding information. Zero is head to
+ * wind at the top, 180 dead downwind at the bottom.
+ */
+function polarSVG(p, maxSpeed) {
+  const scale = Math.max(maxSpeed, 1);
+  const cx = 16, cy = POLAR_R + 12;
+
+  // TWA 0 is up, angles sweep clockwise to 180 at the bottom.
+  const pt = (twaDeg, speed) => {
+    const r = (speed / scale) * POLAR_R;
+    const a = (twaDeg - 90) * Math.PI / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+
+  const rings = [0.5, 1].map(f => {
+    const r = f * POLAR_R;
+    return `<path d="M${cx},${cy - r} A${r},${r} 0 0 1 ${cx},${cy + r}" class="polar-ring"/>
+            <text x="${cx + 4}" y="${cy - r + 9}" class="polar-tick">${(scale * f).toFixed(0)}</text>`;
+  }).join('');
+
+  const spokes = [0, 45, 90, 135, 180].map(d => {
+    const [x, y] = pt(d, scale);
+    return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="polar-spoke"/>
+            <text x="${(cx + (x - cx) * 1.1).toFixed(1)}" y="${(cy + (y - cy) * 1.1).toFixed(1)}"
+                  class="polar-angle">${d}°</text>`;
+  }).join('');
+
+  // Build the two curves, skipping buckets with no samples rather than
+  // dropping them to zero — an unsampled angle is unknown, not slow.
+  const curve = (arr, cls) => {
+    let d = '', open = false;
+    for (let b = 0; b < arr.length; b++) {
+      if (!p.bucketCnt[b]) { open = false; continue; }
+      const [x, y] = pt((b + 0.5) * p.bucketSize, arr[b]);
+      d += `${open ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)} `;
+      open = true;
+    }
+    return d ? `<path d="${d}" class="${cls}"/>` : '';
+  };
+
+  return `
+    <svg viewBox="0 0 ${POLAR_W} ${POLAR_R * 2 + 30}" class="stats-chart polar" role="img"
+         aria-label="Boat speed against true wind angle">
+      ${rings}${spokes}
+      ${curve(p.bucketAvg, 'polar-avg')}
+      ${curve(p.bucketMax, 'polar-max')}
+    </svg>
+    <div class="polar-key">
+      <span class="key-max">— best</span>
+      <span class="key-avg">— average</span>
+      <span class="key-note">${p.sampled.toLocaleString()} pts</span>
+    </div>`;
+}
+
+/** Time spent on each point of sail. */
+function sailBarSVG(sailMs) {
+  const total = sailMs.reduce((a, b) => a + b, 0);
+  if (!total) return '';
+
+  let x = 0;
+  const segs = sailMs.map((ms, i) => {
+    const w = ms / total * 100;
+    if (w <= 0) return '';
+    const seg = `<rect x="${x.toFixed(2)}%" y="0" width="${w.toFixed(2)}%" height="14"
+                       fill="${POINTS_OF_SAIL[i].color}"><title>${POINTS_OF_SAIL[i].name} — ${fmtDuration(ms)} (${Math.round(w)}%)</title></rect>`;
+    x += w;
+    return seg;
+  }).join('');
+
+  const labels = sailMs
+    .map((ms, i) => ({ ms, p: POINTS_OF_SAIL[i] }))
+    .filter(d => d.ms / total > 0.08)
+    .map(d => `<span style="color:${d.p.color}">${d.p.short} ${Math.round(d.ms / total * 100)}%</span>`)
+    .join('');
+
+  return `<svg viewBox="0 0 100 14" preserveAspectRatio="none" class="sail-bar">${segs}</svg>
+          <div class="sail-key">${labels}</div>`;
+}
+
 /** Move the sparkline cursor to the current animation time. */
 export function updateStatsCursor() {
   const track = state.selectedTrack;
@@ -133,9 +234,26 @@ export function renderStats() {
     stat('Max speed', track.maxSpeed.toFixed(1) + ' <small>kts</small>') +
     stat('Points',    track.n.toLocaleString());
 
+  const polar = analysePolar(track);
+
+  if (polar) {
+    const up = polar.bestUpwind, down = polar.bestDownwind;
+    // The angle matters as much as the number — it says where to point.
+    const vmgStat = v => v ? `${v.vmg.toFixed(1)} <small>kt @ ${Math.round(v.twa)}°</small>` : '—';
+    $('#stats-grid').innerHTML +=
+      stat('Best VMG up',   vmgStat(up)) +
+      stat('Best VMG down', vmgStat(down)) +
+      stat('Wind', windSummary(polar, track));
+  }
+
   $('#stats-charts').innerHTML =
     `<div class="chart-title">Speed over time</div>${sparklineSVG(track, a)}` +
-    `<div class="chart-title">Time in each speed band</div>${histogramSVG(a.bucketMs)}`;
+    `<div class="chart-title">Time in each speed band</div>${histogramSVG(a.bucketMs)}` +
+    (polar
+      ? `<div class="chart-title">Points of sail</div>${sailBarSVG(polar.sailMs)}` +
+        `<div class="chart-title">Speed vs true wind angle</div>${polarSVG(polar, track.maxSpeed)}` +
+        `<div class="wind-caveat">Wind from ERA5 reanalysis (~25 km grid) — regional, not what you felt on the water.</div>`
+      : '');
 
   // Click or drag along the sparkline to scrub the animation
   const spark = $('#stats-spark');
