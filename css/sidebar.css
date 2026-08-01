@@ -1,0 +1,72 @@
+#sidebar {
+  width: 290px;
+  flex-shrink: 0;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--surface);
+  display: flex;
+  flex-direction: column;
+  /* Safety valve: on a short window the fixed sections plus a minimum track
+     list can exceed the height, and hiding the overflow would strand controls. */
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--surface);
+  flex-shrink: 0;
+}
+.sidebar-section h2 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute); margin-bottom: 10px;
+  display: inline;
+}
+
+/* Collapsible sections — collapsed, the header is all that costs height. */
+details.sidebar-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex; align-items: center; gap: 6px;
+}
+details.sidebar-section > summary::-webkit-details-marker { display: none; }
+details.sidebar-section > summary::before {
+  content: '▸';
+  font-size: 9px;
+  color: var(--text-mute);
+  transition: transform 0.12s;
+}
+details.sidebar-section[open] > summary::before { transform: rotate(90deg); }
+details.sidebar-section[open] > summary { margin-bottom: 10px; }
+details.sidebar-section > summary:hover h2 { color: var(--text-dim); }
+
+.date-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.date-row label { font-size: 11px; color: var(--text-dim); }
+.date-row input[type="date"],
+.date-row input[type="time"] {
+  width: 100%; background: var(--surface); border: 1px solid var(--surface-hi);
+  border-radius: var(--radius-sm); color: var(--text); padding: 5px 8px;
+  font-size: 12px; color-scheme: dark;
+}
+.date-row input[type="date"]:focus,
+.date-row input[type="time"]:focus { outline: none; border-color: var(--accent); }
+.date-row.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-direction: unset; }
+.date-row.two-col > div { display: flex; flex-direction: column; gap: 4px; }
+
+.filter-divider { height: 1px; background: var(--surface); margin: 8px 0; }
+.filter-btns { display: flex; gap: 6px; margin-top: 6px; }
+.btn-sm {
+  flex: 1; padding: 6px; border: none; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+}
+#btn-apply { background: var(--accent); color: var(--bg); }
+#btn-apply:hover { background: var(--accent-hi); }
+#btn-showall { background: var(--surface); color: var(--text); }
+#btn-showall:hover { background: var(--surface-hi); }
+
+#track-summary { font-size: 11px; color: var(--text-mute); margin-top: 8px; }
+
+.storage-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 6px;
+}
+#storage-info { font-size: 10px; color: var(--text-mute); line-height: 1.4; }
+.hidden { display: none !important; }

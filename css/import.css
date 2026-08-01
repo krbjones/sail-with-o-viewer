@@ -1,0 +1,62 @@
+#import-zone {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--surface-hi);
+  border-radius: var(--radius);
+  background: rgba(49,50,68,0.35);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+#import-zone:hover,
+#import-zone:focus-visible {
+  border-color: var(--accent);
+  background: rgba(137,180,250,0.08);
+  outline: none;
+}
+#import-zone.drag-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: rgba(137,180,250,0.16);
+}
+
+.import-icon {
+  font-size: 20px; line-height: 1;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.import-text { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+.import-text span { font-size: 11px; color: var(--text-mute); }
+
+#import-log { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+#import-log:empty { margin-top: 0; }
+.import-ok   { color: var(--success); }
+.import-skip { color: var(--text-mute); }
+.import-err  { color: var(--active); }
+.import-detail { font-size: 10px; color: var(--text-mute); margin-top: 2px; word-break: break-word; }
+
+.import-note {
+  font-size: 10px; color: var(--text-mute);
+  margin-top: 8px; line-height: 1.5;
+}
+.import-note code {
+  font-size: 10px;
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* Imported tracks are marked in the list and can be removed from there */
+.track-local-badge {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+.track-delete {
+  font-size: 12px; color: var(--text-mute); background: none;
+  border: none; cursor: pointer; padding: 2px 4px; border-radius: 3px;
+}
+.track-delete:hover { background: var(--surface-hi); color: var(--active); }
