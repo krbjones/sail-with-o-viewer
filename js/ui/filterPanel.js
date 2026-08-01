@@ -56,16 +56,14 @@ export function applyFilter() {
 }
 
 export function initFilterPanel() {
+  // Only the time-of-day window persists. The date range deliberately does not:
+  // the app opens on the most recent week of sailing every time (see boot()).
   registerPref('filter', {
     get: () => ({
-      from:     $('#date-from').value,
-      to:       $('#date-to').value,
       timeFrom: $('#time-from').value,
       timeTo:   $('#time-to').value,
     }),
     set: v => {
-      if (v.from)     $('#date-from').value = v.from;
-      if (v.to)       $('#date-to').value   = v.to;
       $('#time-from').value = v.timeFrom || '';
       $('#time-to').value   = v.timeTo   || '';
     },

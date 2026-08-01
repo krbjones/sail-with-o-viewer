@@ -62,12 +62,15 @@ async function boot() {
 
   // Saved preferences first, then the URL on top — a shared link should win
   // over whatever this browser was last looking at.
-  const saved = await loadPrefs();
-  const url   = readUrlState();
+  await loadPrefs();
+  const url = readUrlState();
   applyUrlFilters(url);
 
-  const haveRange = url.from || (saved.filter && saved.filter.from);
-  if (!haveRange) {
+  // Open on the most recent week of sailing every time. The date range is
+  // deliberately not restored from preferences: the useful thing to see on
+  // arrival is what happened lately, not wherever the filter was left months
+  // ago. An explicit shared link still wins.
+  if (!url.from) {
     let latestMs = -Infinity;
     for (const m of state.allTrackMeta) if (m.startMs > latestMs) latestMs = m.startMs;
     setRange(latestMs - WEEK_MS, latestMs);

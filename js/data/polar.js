@@ -50,7 +50,9 @@ export function analysePolar(track) {
     const heading = headingAt(track, i);
     if (heading === null) continue;
 
-    const wind = windForTrack(track, times[i]);
+    // Sample at the boat's own position — over a 20 km area the grid genuinely
+    // differs end to end, and the coordinates are already to hand.
+    const wind = windForTrack(track, times[i], track.lats[i], track.lons[i]);
     if (!wind) continue;
 
     const angle = trueWindAngle(heading, wind.windFrom);

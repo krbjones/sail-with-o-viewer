@@ -1,4 +1,4 @@
-import { WIND_URL, MAX_WIND_GAP_MS } from '../config.js';
+import { WIND_URL, WIND_GRID_URL, MAX_WIND_GAP_MS } from '../config.js';
 
 /**
  * Historical wind, as built by build_wind.py.
@@ -10,10 +10,18 @@ import { WIND_URL, MAX_WIND_GAP_MS } from '../config.js';
  */
 
 let areas = [];
-/** areaId -> rows sorted by time: [timeMs, areaId, speedKts, fromDeg, gustKts] */
+/** areaId -> rows sorted by time: [timeMs, areaId, speedKts, fromDeg, gustKts, modelIdx] */
 let byArea = new Map();
 let loaded = false;
 let meta = null;
+
+/** areaId -> grid spec, and the shared Int8Array of quantised u/v. */
+let gridsByArea = new Map();
+let gridData = null;
+
+export function windGridLoaded() { return gridData !== null && gridsByArea.size > 0; }
+/** Grid specs, for the particle layer. */
+export function windGrids() { return [...gridsByArea.values()]; }
 
 export function windLoaded() { return loaded && byArea.size > 0; }
 export function windMeta()   { return meta; }
@@ -63,11 +71,125 @@ export async function loadWind() {
     }
     for (const list of byArea.values()) list.sort((a, b) => a[0] - b[0]);
 
+    await loadGrid(doc.grids);
     return windLoaded();
   } catch (e) {
     console.warn('No wind data available:', e.message);
     return false;
   }
+}
+
+/**
+ * The grid sidecar: quantised u/v components as Int8, one block per area.
+ * Optional — without it everything falls back to the per-area point rows.
+ */
+async function loadGrid(specs) {
+  if (!specs || !specs.length) return;
+
+  try {
+    const r = await fetch(WIND_GRID_URL);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    gridData = new Int8Array(await r.arrayBuffer());
+
+    let needed = 0;
+    for (const spec of specs) {
+      const cells = spec.nLat * spec.nLon * spec.hours.length * 2;
+      needed = Math.max(needed, spec.offset + cells);
+
+      // Hour -> block index, so a lookup is a map hit rather than a scan.
+      const index = new Map();
+      spec.hours.forEach((t, i) => index.set(t, i));
+      gridsByArea.set(spec.area, { ...spec, index });
+    }
+
+    if (gridData.length < needed) {
+      console.warn(`wind-grid.bin is ${gridData.length} bytes, expected at least ${needed}; ignoring it.`);
+      gridData = null;
+      gridsByArea.clear();
+    }
+  } catch (e) {
+    console.warn('No wind grid available, using point wind:', e.message);
+    gridData = null;
+    gridsByArea.clear();
+  }
+}
+
+/** u/v at one grid node, in knots. */
+function nodeUV(grid, hourIdx, i, j) {
+  const stride = grid.nLat * grid.nLon * 2;
+  const o = grid.offset + hourIdx * stride + (i * grid.nLon + j) * 2;
+  return [gridData[o] * grid.scale, gridData[o + 1] * grid.scale];
+}
+
+/** Bilinear u/v at a position within one hour's block, or null if outside. */
+function bilinear(grid, hourIdx, lat, lon) {
+  let fi = (lat - grid.lat0) / grid.dLat;
+  let fj = (lon - grid.lon0) / grid.dLon;
+
+  // The spacing is stored rounded, so a point exactly on the far edge lands a
+  // hair beyond nLat-1. Tolerate that, then clamp — rejecting the boundary
+  // would punch a hole along two sides of every grid.
+  const EPS = 1e-6;
+  if (fi < -EPS || fj < -EPS || fi > grid.nLat - 1 + EPS || fj > grid.nLon - 1 + EPS) return null;
+  fi = Math.min(Math.max(fi, 0), grid.nLat - 1);
+  fj = Math.min(Math.max(fj, 0), grid.nLon - 1);
+
+  const i0 = Math.min(grid.nLat - 2, Math.floor(fi));
+  const j0 = Math.min(grid.nLon - 2, Math.floor(fj));
+  const ti = fi - i0, tj = fj - j0;
+
+  const [u00, v00] = nodeUV(grid, hourIdx, i0,     j0);
+  const [u01, v01] = nodeUV(grid, hourIdx, i0,     j0 + 1);
+  const [u10, v10] = nodeUV(grid, hourIdx, i0 + 1, j0);
+  const [u11, v11] = nodeUV(grid, hourIdx, i0 + 1, j0 + 1);
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  return [
+    lerp(lerp(u00, u01, tj), lerp(u10, u11, tj), ti),
+    lerp(lerp(v00, v01, tj), lerp(v10, v11, tj), ti),
+  ];
+}
+
+/** Components back to speed and the direction the wind comes FROM. */
+export function uvToWind(u, v) {
+  return {
+    speed:    Math.hypot(u, v),
+    windFrom: (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360,
+  };
+}
+
+/**
+ * Grid wind at a position and time: bilinear in space, linear in time on the
+ * components. Returns null outside the grid's footprint or time range.
+ */
+export function gridWindAt(areaId, lat, lon, t) {
+  const grid = gridsByArea.get(areaId);
+  if (!grid || !gridData) return null;
+
+  const hours = grid.hours;
+  const hourMs = 3600000;
+  const before = Math.floor(t / hourMs) * hourMs;
+  const after  = before + hourMs;
+
+  const iBefore = grid.index.get(before);
+  const iAfter  = grid.index.get(after);
+
+  if (iBefore === undefined && iAfter === undefined) return null;
+
+  // At an exact edge only one side exists; use it rather than refusing.
+  if (iBefore === undefined) return uvOf(bilinear(grid, iAfter, lat, lon));
+  if (iAfter  === undefined) return uvOf(bilinear(grid, iBefore, lat, lon));
+
+  const a = bilinear(grid, iBefore, lat, lon);
+  const b = bilinear(grid, iAfter,  lat, lon);
+  if (!a || !b) return null;
+
+  const f = (t - before) / hourMs;
+  return uvOf([a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])]);
+}
+
+function uvOf(uv) {
+  return uv ? uvToWind(uv[0], uv[1]) : null;
 }
 
 /** Nearest sailing area to a position, by squared degrees — areas are far apart. */
@@ -129,10 +251,31 @@ export function windAt(areaId, t) {
   };
 }
 
-/** Wind at a track's position and time. */
-export function windForTrack(track, t) {
+/**
+ * Wind for a track at a moment.
+ *
+ * Pass the boat's position to sample the grid there — over a 20 km area that is
+ * a real difference, and it is free for callers walking the point arrays.
+ * Without a position, or outside the grid, this falls back to the area's single
+ * point series.
+ */
+export function windForTrack(track, t, lat, lon) {
   const areaId = areaFor(track);
-  return areaId == null ? null : windAt(areaId, t);
+  if (areaId == null) return null;
+
+  if (lat !== undefined && lon !== undefined) {
+    const g = gridWindAt(areaId, lat, lon, t);
+    // The grid carries no gust, so borrow it from the point series.
+    if (g) return { ...g, gust: pointGustAt(areaId, t) };
+  }
+
+  return windAt(areaId, t);
+}
+
+/** Gust at an hour from the point series, for pairing with a grid sample. */
+function pointGustAt(areaId, t) {
+  const p = windAt(areaId, t);
+  return p ? p.gust : null;
 }
 
 /**

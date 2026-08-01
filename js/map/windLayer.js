@@ -70,7 +70,10 @@ export function updateWindPanel() {
   if (!panel || !refs) return;
 
   const track = referenceTrack();
-  const wind  = track ? windForTrack(track, state.animTime) : null;
+  // Sample where the boat actually is, when it is under way.
+  const at    = track && state.animTime >= track.startTime && state.animTime <= track.endTime
+    ? interpolate(track, state.animTime) : null;
+  const wind  = track ? windForTrack(track, state.animTime, at?.lat, at?.lon) : null;
 
   if (!wind) {
     panel.classList.add('wind-idle');
@@ -90,9 +93,7 @@ export function updateWindPanel() {
   refs.arrow.style.transform = `rotate(${(wind.windFrom + 180) % 360}deg)`;
 
   // Point of sail needs the boat's heading, so only while a boat is moving.
-  const active = state.animTime >= track.startTime && state.animTime <= track.endTime;
-  if (active) {
-    const at   = interpolate(track, state.animTime);
+  if (at) {
     const twa  = trueWindAngle(at.bearing, wind.windFrom);
     const sail = pointOfSail(twa);
     const tack = tackOf(twa);

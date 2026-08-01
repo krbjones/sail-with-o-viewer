@@ -21,7 +21,7 @@ thermals or shoreline effects. For observed wind, Environment Canada publishes
 free hourly station data (Ottawa Airport is about 12 km from Lac Deschenes).
 """
 
-import os, sys, json, time, hashlib, urllib.parse, urllib.request, urllib.error
+import os, sys, json, math, time, array, hashlib, urllib.parse, urllib.request, urllib.error
 from datetime import datetime, timezone, timedelta
 
 FOLDER    = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +59,37 @@ PAD_HOURS      = 1          # keep an hour either side so interpolation has ends
 REQUEST_PAUSE  = 0.4        # be polite to a free API
 HOUR_MS        = 3600000
 
+# Wind is only fetched for tracks from this date on. Older tracks keep their
+# GPS data and stats; they simply have no wind, and every wind feature already
+# degrades to nothing when the hour is not covered.
+WIND_FROM = datetime(2025, 1, 1)
+
+# ── Grid, for the particle field ──────────────────────────────────
+#
+# Only areas served by a North American model get a grid — that is what
+# "Canadian tracks only" means in practice, and it falls out of the ladder
+# rather than needing a hardcoded bounding box.
+GRID_MODELS     = {'gem_hrdps_continental', 'gfs_hrrr'}
+GRID_TARGET_KM  = 2.5       # the finest model's native spacing
+GRID_MARGIN_KM  = 8.0       # field beyond the tracks, so particles have room
+GRID_MAX_POINTS = 180       # cap per area; one request stays comfortable
+QUANT_KN        = 0.25      # int8 step, so +/- 31.75 kn
+GRID_PATH       = os.path.join(DATA_DIR, 'wind-grid.bin')
+
+
+def to_uv(speed_kn, dir_from_deg):
+    """
+    Meteorological direction (where wind comes FROM) to eastward/northward
+    components. From the north means blowing toward the south, so both
+    components carry a leading minus.
+    """
+    r = math.radians(dir_from_deg)
+    return -speed_kn * math.sin(r), -speed_kn * math.cos(r)
+
+
+def quantise(value):
+    return max(-127, min(127, int(round(value / QUANT_KN))))
+
 
 # ── Areas ─────────────────────────────────────────────────────────
 
@@ -91,12 +122,103 @@ def group_areas(tracks):
 
 def wanted_hours(area):
     """Epoch-hour indices this area's tracks span, padded at both ends."""
+    cutoff = WIND_FROM.timestamp() * 1000
     hours = set()
     for t in area['tracks']:
+        if t['startMs'] < cutoff:
+            continue
         first = t['startMs'] // HOUR_MS - PAD_HOURS
         last  = t['endMs']   // HOUR_MS + PAD_HOURS
         hours.update(range(first, last + 1))
     return hours
+
+
+def grid_for(area):
+    """
+    A regular lat/lon grid covering the area's recent tracks plus a margin.
+    The margin matters for the particle field: without it the flow stops at the
+    edge of where the boat happened to sail.
+    """
+    cutoff = WIND_FROM.timestamp() * 1000
+    boxes = [t['bbox'] for t in area['tracks'] if t['startMs'] >= cutoff]
+    if not boxes:
+        return None
+
+    lat0 = min(b[0] for b in boxes); lat1 = max(b[2] for b in boxes)
+    lon0 = min(b[1] for b in boxes); lon1 = max(b[3] for b in boxes)
+
+    km_per_lat = 111.0
+    km_per_lon = 111.0 * math.cos(math.radians((lat0 + lat1) / 2))
+
+    lat0 -= GRID_MARGIN_KM / km_per_lat; lat1 += GRID_MARGIN_KM / km_per_lat
+    lon0 -= GRID_MARGIN_KM / km_per_lon; lon1 += GRID_MARGIN_KM / km_per_lon
+
+    n_lat = max(2, int(round((lat1 - lat0) / (GRID_TARGET_KM / km_per_lat))) + 1)
+    n_lon = max(2, int(round((lon1 - lon0) / (GRID_TARGET_KM / km_per_lon))) + 1)
+
+    # Coarsen the longer axis until the point count is within budget.
+    while n_lat * n_lon > GRID_MAX_POINTS and (n_lat > 2 or n_lon > 2):
+        if n_lat >= n_lon: n_lat -= 1
+        else:              n_lon -= 1
+
+    return {
+        'lat0': round(lat0, 5), 'lon0': round(lon0, 5),
+        'dLat': round((lat1 - lat0) / (n_lat - 1), 6),
+        'dLon': round((lon1 - lon0) / (n_lon - 1), 6),
+        'nLat': n_lat, 'nLon': n_lon,
+    }
+
+
+def grid_points(grid):
+    """Grid coordinates in row-major order: latitude outer, longitude inner."""
+    return [
+        (round(grid['lat0'] + i * grid['dLat'], 5), round(grid['lon0'] + j * grid['dLon'], 5))
+        for i in range(grid['nLat'])
+        for j in range(grid['nLon'])
+    ]
+
+
+def fetch_grid(model, endpoint, grid, start_date, end_date):
+    """{epoch_ms: [(u, v), ...]} in grid order, for one model and date range."""
+    pts = grid_points(grid)
+    params = {
+        'latitude':        ','.join(str(p[0]) for p in pts),
+        'longitude':       ','.join(str(p[1]) for p in pts),
+        'start_date':      start_date.isoformat(),
+        'end_date':        end_date.isoformat(),
+        'hourly':          'wind_speed_10m,wind_direction_10m',
+        'wind_speed_unit': 'kn',
+        'timeformat':      'unixtime',
+    }
+    if endpoint is FORECAST_API:
+        params['models'] = model
+
+    url = f'{endpoint}?{urllib.parse.urlencode(params)}'
+    with urllib.request.urlopen(url, timeout=180) as resp:
+        payload = json.load(resp)
+
+    locations = payload if isinstance(payload, list) else [payload]
+    if len(locations) != len(pts):
+        raise RuntimeError(f'expected {len(pts)} locations, got {len(locations)}')
+
+    by_hour = {}
+    for idx, loc in enumerate(locations):
+        h     = loc['hourly']
+        times = h['time']
+        spds  = _field(h, 'wind_speed_10m')
+        dirs  = _field(h, 'wind_direction_10m')
+        if spds is None or dirs is None:
+            raise RuntimeError('grid response missing wind fields')
+
+        for t, spd, wdir in zip(times, spds, dirs):
+            if spd is None or wdir is None:
+                continue
+            slot = by_hour.setdefault(t * 1000, [None] * len(pts))
+            slot[idx] = to_uv(spd, wdir)
+
+    # An hour is only usable if every cell reported; a hole would interpolate
+    # against a zero and bend the flow toward it.
+    return {t: cells for t, cells in by_hour.items() if all(c is not None for c in cells)}
 
 
 def month_spans(hours):
@@ -237,6 +359,12 @@ def main():
     failures  = []
     used      = {}      # model index -> hours fetched, for the summary
 
+    # Grids are always rebuilt: the binary has no per-row provenance to merge
+    # against, and at this size refetching costs little.
+    grids     = {a['id']: grid_for(a) for a in areas}
+    grids     = {k: g for k, g in grids.items() if g}
+    grid_rows = {}      # (areaId, timeMs) -> [(u, v), ...] in grid order
+
     for area in areas:
         hours = wanted_hours(area)
         missing = {h for h in hours if (area['id'], h * HOUR_MS) not in rows}
@@ -281,6 +409,25 @@ def main():
                 kept += 1
             used[model_idx] = used.get(model_idx, 0) + kept
             print(f'    {month}: {kept} hour(s) from {MODEL_NAMES[model_idx]}')
+
+            # A grid for the particle field, from the same model that just
+            # answered — but only where that model is a North American one.
+            grid = grids.get(area['id'])
+            if grid and MODELS[model_idx][0] in GRID_MODELS:
+                try:
+                    cells = fetch_grid(MODELS[model_idx][0], MODELS[model_idx][2], grid, first, last)
+                    kept_g = 0
+                    for t_ms, uv in cells.items():
+                        if t_ms // HOUR_MS not in hours:
+                            continue
+                        grid_rows[(area['id'], t_ms)] = uv
+                        kept_g += 1
+                    print(f'      grid: {kept_g} hour(s) x {grid["nLat"]}x{grid["nLon"]} cells')
+                except (urllib.error.URLError, RuntimeError, TimeoutError, OSError) as e:
+                    print(f'      grid: FAILED - {e}')
+                    failures.append((area['id'], month, f'grid: {e}'))
+                time.sleep(REQUEST_PAUSE)
+
             time.sleep(REQUEST_PAUSE)
 
     # Drop hours no track covers any more. Without this, deleting a track leaves
@@ -304,7 +451,41 @@ def main():
         for a in areas
     ]
 
-    body = {'areas': areas_out, 'models': MODEL_NAMES, 'hours': hours_out}
+    # ── Grid sidecar ──────────────────────────────────────────────
+    #
+    # u and v as int8 at 0.25 kn. Stored as components rather than speed and
+    # direction because interpolation has to happen in vector space anyway —
+    # averaging 9 and 328 degrees numerically gives the opposite of the truth.
+    grid_meta = []
+    blob = array.array('b')
+
+    for area_id in sorted(grids):
+        grid  = grids[area_id]
+        times = sorted(t for (a, t) in grid_rows if a == area_id)
+        if not times:
+            continue
+
+        offset = len(blob)
+        for t_ms in times:
+            for u, v in grid_rows[(area_id, t_ms)]:
+                blob.append(quantise(u))
+                blob.append(quantise(v))
+
+        grid_meta.append({
+            'area':   area_id,
+            **grid,
+            'scale':  QUANT_KN,
+            'offset': offset,
+            'hours':  times,
+        })
+
+    if blob:
+        with open(GRID_PATH, 'wb') as f:
+            blob.tofile(f)
+    elif os.path.exists(GRID_PATH):
+        os.remove(GRID_PATH)
+
+    body = {'areas': areas_out, 'models': MODEL_NAMES, 'grids': grid_meta, 'hours': hours_out}
     doc  = {
         'format': FORMAT,
         'stamp':  content_stamp(body),
@@ -330,6 +511,15 @@ def main():
     for idx in sorted(tally, key=lambda i: (i is None, i)):
         name = MODEL_NAMES[idx] if idx is not None else 'unknown (older file)'
         print(f'  {name:16s} {tally[idx]:5d} hour(s)')
+
+    if grid_meta:
+        cells = sum(g['nLat'] * g['nLon'] * len(g['hours']) for g in grid_meta)
+        print(f'\ndata/wind-grid.bin - {len(blob)/1024:.1f} KB, {cells} cells '
+              f'across {len(grid_meta)} area(s)')
+        for g in grid_meta:
+            print(f"  area {g['area']}: {g['nLat']}x{g['nLon']} cells, {len(g['hours'])} hour(s)")
+    else:
+        print('\nNo grid written (no North American area had data).')
 
     if failures:
         print(f'{len(failures)} request(s) failed; rerun to fill the gaps:')
