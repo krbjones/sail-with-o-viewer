@@ -5,6 +5,7 @@ import { speedBucket } from '../core/geo.js';
 import { SPEED_COLORS, SPEED_LABELS } from '../config.js';
 import { POINTS_OF_SAIL, windForTrack, windProvenance } from '../data/wind.js';
 import { analysePolar } from '../data/polar.js';
+import { hasDebrief, openDebrief } from './debrief.js';
 
 /** Mean wind over the track, sampled hourly. */
 function windSummary(polar, track) {
@@ -233,6 +234,11 @@ export function renderStats() {
     stat('Avg speed', track.avgSpeed ? track.avgSpeed.toFixed(1) + ' <small>kts</small>' : '—') +
     stat('Max speed', track.maxSpeed.toFixed(1) + ' <small>kts</small>') +
     stat('Points',    track.n.toLocaleString());
+
+  // A race track gets a way through to the full debrief.
+  const debriefBtn = $('#btn-debrief');
+  debriefBtn.classList.toggle('hidden', !hasDebrief(track));
+  debriefBtn.onclick = () => openDebrief(track);
 
   const polar = analysePolar(track);
 

@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/import.css">
   <link rel="stylesheet" href="css/stats.css">
   <link rel="stylesheet" href="css/wind.css">
+  <link rel="stylesheet" href="css/debrief.css">
   <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
@@ -122,6 +123,7 @@
       </div>
       <div id="stats-title"></div>
       <div id="stats-grid"></div>
+      <button id="btn-debrief" class="hidden">Open race debrief</button>
       <div id="stats-charts"></div>
     </div>
   </div>
@@ -157,6 +159,19 @@
     <div id="anim-range-start">──</div>
     <input type="range" id="anim-slider" min="0" max="1" step="1" value="0" disabled>
     <div id="anim-range-end">──</div>
+  </div>
+</div>
+
+<div id="debrief" class="hidden">
+  <div class="debrief-panel">
+    <div id="debrief-header">
+      <div>
+        <div id="debrief-title"></div>
+        <div id="debrief-sub"></div>
+      </div>
+      <button id="debrief-close" title="Close" aria-label="Close debrief">✕</button>
+    </div>
+    <div id="debrief-body"></div>
   </div>
 </div>
 

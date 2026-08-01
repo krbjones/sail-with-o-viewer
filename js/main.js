@@ -10,6 +10,8 @@ import { initLegend, enableColorModes, disableColorModes, setColorModeHandler } 
 import { renderTracks } from './map/trackRenderer.js';
 
 import { fetchManifest } from './data/manifest.js';
+import { loadRaces, raceCount } from './data/races.js';
+import { initDebrief } from './ui/debrief.js';
 import { loadWind } from './data/wind.js';
 import { initWindLayer } from './map/windLayer.js';
 import { loadTracksForRange, syncCache, loadLocalTracks } from './data/trackLoader.js';
@@ -55,6 +57,10 @@ async function boot() {
     showSplashError('The track index is empty. Run build_tracks.py and reload.', boot);
     return;
   }
+
+  // Official results, if the club page has been scraped. Optional like the
+  // wind: without them tracks are just tracks.
+  await loadRaces();
 
   // Drop any cached month whose bundle has been rebuilt since.
   setSplashStatus('Checking local cache…');
@@ -125,6 +131,7 @@ function init() {
   initStoragePanel();
   initImportPanel();
   initStatsPanel();
+  initDebrief();
   initDrawer();
   initKeyboard();
 

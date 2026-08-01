@@ -11,6 +11,7 @@ export const DATA_DIR     = 'data';
 export const CHART_URL    = 'lac_deschennes_chart_1550_cog.tif';
 export const WIND_URL      = 'data/wind.json';
 export const WIND_GRID_URL = 'data/wind-grid.bin';
+export const RACES_URL     = 'data/races.json';
 
 // ── Wind ──────────────────────────────────────────────────────────
 /** Wind is hourly; refuse to interpolate across a gap wider than this. */
