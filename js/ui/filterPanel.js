@@ -8,6 +8,7 @@ import { updateAnimRange } from './animBar.js';
 import { loadTracksForRange, manifestRange } from '../data/trackLoader.js';
 import { registerPref, savePrefs } from '../core/prefs.js';
 import { refreshStorageInfo } from './storagePanel.js';
+import { renderStats } from './statsPanel.js';
 
 /** Current date filter as epoch ms, with open ends when a field is blank. */
 export function currentRange() {
@@ -49,6 +50,7 @@ export function applyFilter() {
   clearMarkers();
   renderTracks();
   renderForView();
+  renderStats();      // selection was just cleared, so this hides the panel
   updateAnimRange();
 }
 

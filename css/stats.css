@@ -1,0 +1,60 @@
+#stats-panel {
+  border-top: 1px solid var(--surface);
+  padding: 10px 14px 12px;
+  flex: 0 0 auto;
+  /* A px bound, not vh: a viewport reporting zero height (a background tab, or
+     before first layout) collapses a vh max-height to nothing. */
+  max-height: 340px;
+  overflow-y: auto;
+}
+#stats-panel.hidden { display: none; }
+#stats-panel::-webkit-scrollbar { width: 4px; }
+#stats-panel::-webkit-scrollbar-thumb { background: var(--surface-hi); border-radius: 2px; }
+
+#stats-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 2px;
+}
+#stats-header h2 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute);
+}
+#stats-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-mute); font-size: 13px; line-height: 1;
+  padding: 2px 4px; border-radius: 3px;
+}
+#stats-close:hover { background: var(--surface-hi); color: var(--text); }
+
+#stats-title { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+
+#stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 6px;
+  margin-bottom: 12px;
+}
+.stat { min-width: 0; }
+.stat-value {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stat-value small { font-size: 10px; font-weight: 500; color: var(--text-mute); }
+.stat-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-mute); margin-top: 1px;
+}
+
+.chart-title {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-mute); margin: 6px 0 4px;
+}
+.stats-chart { width: 100%; height: auto; display: block; }
+.stats-empty { font-size: 11px; color: var(--text-mute); padding: 6px 0; }
+
+.spark { cursor: ew-resize; touch-action: none; }
+.spark-area { fill: rgba(137,180,250,0.22); }
+.spark-line { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+.spark-cursor { stroke: var(--active); stroke-width: 1.5; }
+
+.hist-label { fill: var(--text-mute); font-size: 6px; text-anchor: middle; }

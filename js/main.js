@@ -10,11 +10,12 @@ import { initLegend } from './map/legend.js';
 import { fetchManifest } from './data/manifest.js';
 import { loadTracksForRange, syncCache, loadLocalTracks } from './data/trackLoader.js';
 
-import { initAnimBar } from './ui/animBar.js';
-import { initTrackList, renderForView } from './ui/trackList.js';
+import { initAnimBar, seekTo } from './ui/animBar.js';
+import { initTrackList, renderForView, clearSelection } from './ui/trackList.js';
 import { initFilterPanel, applyFilter, setRange, currentRange } from './ui/filterPanel.js';
 import { initStoragePanel, refreshStorageInfo } from './ui/storagePanel.js';
 import { initImportPanel } from './ui/importPanel.js';
+import { initStatsPanel, setSeekHandler, setCloseHandler } from './ui/statsPanel.js';
 import { initKeyboard } from './ui/keyboard.js';
 import { hideSplash, setSplashStatus, showSplashError, clearSplashError } from './ui/splash.js';
 
@@ -82,7 +83,12 @@ function init() {
   initFilterPanel();
   initStoragePanel();
   initImportPanel();
+  initStatsPanel();
   initKeyboard();
+
+  // Scrubbing the stats sparkline drives the animation cursor.
+  setSeekHandler(seekTo);
+  setCloseHandler(clearSelection);
 
   // 'resize' matters too: the map may be laid out only after boot (background
   // tab, or a drawer opening), and the list needs re-filtering once it is.

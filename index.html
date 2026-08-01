@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/animbar.css">
   <link rel="stylesheet" href="css/map.css">
   <link rel="stylesheet" href="css/import.css">
+  <link rel="stylesheet" href="css/stats.css">
 </head>
 <body>
 
@@ -39,15 +40,16 @@
   <div id="sidebar">
     <div class="sidebar-section">
       <h2>Date &amp; Time Filter</h2>
-      <div class="date-row">
-        <label for="date-from">Date from</label>
-        <input type="date" id="date-from">
+      <div class="date-row two-col">
+        <div>
+          <label for="date-from">Date from</label>
+          <input type="date" id="date-from">
+        </div>
+        <div>
+          <label for="date-to">Date to</label>
+          <input type="date" id="date-to">
+        </div>
       </div>
-      <div class="date-row">
-        <label for="date-to">Date to</label>
-        <input type="date" id="date-to">
-      </div>
-      <div class="filter-divider"></div>
       <div class="date-row two-col">
         <div>
           <label for="time-from">Time from</label>
@@ -69,8 +71,8 @@
       </div>
     </div>
 
-    <div class="sidebar-section">
-      <h2>Add tracks</h2>
+    <details class="sidebar-section" id="import-section">
+      <summary><h2>Add tracks</h2></summary>
       <div id="import-zone" tabindex="0" role="button" aria-label="Add GPX files">
         <div class="import-icon">＋</div>
         <div class="import-text">Drop GPX files here<br><span>or click to choose</span></div>
@@ -81,7 +83,7 @@
         Imported tracks are stored in this browser only. To publish one for
         everyone, add the file to the repo and run <code>build_tracks.py</code>.
       </div>
-    </div>
+    </details>
 
     <div id="tracklist-header">
       <h2>Tracks</h2>
@@ -96,6 +98,16 @@
 
     <div id="tracklist">
       <div id="no-tracks">Loading tracks…</div>
+    </div>
+
+    <div id="stats-panel" class="hidden">
+      <div id="stats-header">
+        <h2>Selected track</h2>
+        <button id="stats-close" title="Clear selection" aria-label="Clear selection">✕</button>
+      </div>
+      <div id="stats-title"></div>
+      <div id="stats-grid"></div>
+      <div id="stats-charts"></div>
     </div>
   </div>
 

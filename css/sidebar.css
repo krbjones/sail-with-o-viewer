@@ -5,14 +5,38 @@
   border-right: 1px solid var(--surface);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Safety valve: on a short window the fixed sections plus a minimum track
+     list can exceed the height, and hiding the overflow would strand controls. */
+  overflow-y: auto;
 }
 
-.sidebar-section { padding: 12px 14px; border-bottom: 1px solid var(--surface); }
+.sidebar-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--surface);
+  flex-shrink: 0;
+}
 .sidebar-section h2 {
   font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.08em; color: var(--text-mute); margin-bottom: 10px;
+  display: inline;
 }
+
+/* Collapsible sections — collapsed, the header is all that costs height. */
+details.sidebar-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex; align-items: center; gap: 6px;
+}
+details.sidebar-section > summary::-webkit-details-marker { display: none; }
+details.sidebar-section > summary::before {
+  content: '▸';
+  font-size: 9px;
+  color: var(--text-mute);
+  transition: transform 0.12s;
+}
+details.sidebar-section[open] > summary::before { transform: rotate(90deg); }
+details.sidebar-section[open] > summary { margin-bottom: 10px; }
+details.sidebar-section > summary:hover h2 { color: var(--text-dim); }
 
 .date-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .date-row label { font-size: 11px; color: var(--text-dim); }

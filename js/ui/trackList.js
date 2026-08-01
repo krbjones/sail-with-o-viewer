@@ -7,6 +7,7 @@ import { zoomToTrack, setTrackShown, setActiveChangeHandler, updateTrackStyles }
 import { updateMarkers } from '../map/markerRenderer.js';
 import { stopAnim, updateAnimRange, setAnimTime, refreshAnim } from './animBar.js';
 import { deleteImported } from './importPanel.js';
+import { renderStats } from './statsPanel.js';
 
 /** trackId → row element, so the animation loop never needs querySelector. */
 const rows = new Map();
@@ -29,6 +30,11 @@ export function setAllShown(shown) {
   updateMarkers();
 }
 
+/** Drop the current selection and widen the animation range back out. */
+export function clearSelection() {
+  if (state.selectedTrack) selectTrack(state.selectedTrack);
+}
+
 /** Select (or deselect) a track and retarget the animation range at it. */
 function selectTrack(track) {
   stopAnim();
@@ -39,6 +45,7 @@ function selectTrack(track) {
   // zoomToTrack suppresses the debounced extent rebuild, so drive it here —
   // the list still follows the map extent, just without the 150ms lag.
   renderForView();
+  renderStats();
 
   updateAnimRange();
   setAnimTime(state.animMin);

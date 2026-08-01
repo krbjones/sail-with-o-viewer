@@ -9,7 +9,13 @@
 }
 #tracklist-header span { font-size: 11px; color: var(--text-mute); }
 
-#tracklist { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+/* Always worth several rows, whatever else is open above it. */
+#tracklist {
+  flex: 1 1 auto;
+  min-height: 150px;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
 #tracklist::-webkit-scrollbar { width: 4px; }
 #tracklist::-webkit-scrollbar-thumb { background: var(--surface-hi); border-radius: 2px; }
 

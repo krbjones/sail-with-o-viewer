@@ -3,6 +3,7 @@ import { $ } from '../core/dom.js';
 import { fmtDate, fmtTime, fmtDateTime } from '../core/format.js';
 import { updateMarkers } from '../map/markerRenderer.js';
 import { updateTrackStyles } from '../map/trackRenderer.js';
+import { updateStatsCursor } from './statsPanel.js';
 import { STEP_MS, SLIDER_STEPS, UI_REFRESH_MS } from '../config.js';
 import { registerPref, savePrefs } from '../core/prefs.js';
 
@@ -77,6 +78,7 @@ export function updateAnimRange() {
 export function refreshAnim() {
   updateSlider();
   updateTimeDisplay();
+  updateStatsCursor();
   updateTrackStyles();
   updateMarkers();
 }
@@ -106,6 +108,7 @@ function animStep(realNow) {
       lastUiRefresh = realNow;
       updateSlider();
       updateTimeDisplay();
+      updateStatsCursor();
     }
 
     if (state.animTime >= state.animMax) { stopAnim(); return; }
