@@ -7,6 +7,11 @@ export const SPEED_LABELS     = ['< 0.5', '0.5 – 2', '2 – 4', '4 – 6', '6 
 export const MANIFEST_URL = 'tracks.json';
 export const DATA_DIR     = 'data';
 export const CHART_URL    = 'lac_deschennes_chart_1550_cog.tif';
+export const WIND_URL     = 'data/wind.json';
+
+// ── Wind ──────────────────────────────────────────────────────────
+/** Wind is hourly; refuse to interpolate across a gap wider than this. */
+export const MAX_WIND_GAP_MS = 2 * 3600000;
 
 // ── Local database ────────────────────────────────────────────────
 export const DB_NAME    = 'sailwitho';

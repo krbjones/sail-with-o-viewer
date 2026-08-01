@@ -8,6 +8,8 @@ import { initLayers } from './map/layersControl.js';
 import { initLegend } from './map/legend.js';
 
 import { fetchManifest } from './data/manifest.js';
+import { loadWind } from './data/wind.js';
+import { initWindLayer } from './map/windLayer.js';
 import { loadTracksForRange, syncCache, loadLocalTracks } from './data/trackLoader.js';
 
 import { initAnimBar, seekTo } from './ui/animBar.js';
@@ -78,6 +80,10 @@ async function boot() {
     showSplashError(`Could not load track data (${failed.join(', ')}).`, boot);
     return;
   }
+
+  // Wind is optional: 33 KB, and every feature that uses it degrades quietly
+  // if data/wind.json is absent.
+  if (await loadWind()) initWindLayer();
 
   hideSplash();
   applyFilter();

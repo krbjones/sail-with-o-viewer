@@ -4,6 +4,7 @@ import { fmtDate, fmtTime, fmtDateTime } from '../core/format.js';
 import { updateMarkers } from '../map/markerRenderer.js';
 import { updateTrackStyles } from '../map/trackRenderer.js';
 import { updateStatsCursor } from './statsPanel.js';
+import { updateWindPanel } from '../map/windLayer.js';
 import { STEP_MS, SLIDER_STEPS, UI_REFRESH_MS } from '../config.js';
 import { registerPref, savePrefs } from '../core/prefs.js';
 
@@ -79,6 +80,7 @@ export function refreshAnim() {
   updateSlider();
   updateTimeDisplay();
   updateStatsCursor();
+  updateWindPanel();
   updateTrackStyles();
   updateMarkers();
 }
@@ -109,6 +111,7 @@ function animStep(realNow) {
       updateSlider();
       updateTimeDisplay();
       updateStatsCursor();
+      updateWindPanel();
     }
 
     if (state.animTime >= state.animMax) { stopAnim(); return; }
