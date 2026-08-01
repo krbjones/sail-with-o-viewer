@@ -8,6 +8,23 @@
   letter-spacing: 0.08em; color: var(--text-mute);
 }
 #tracklist-header span { font-size: 11px; color: var(--text-mute); }
+.tracklist-header-right { display: flex; align-items: center; gap: 6px; }
+
+#tracklist-tools {
+  display: flex; gap: 6px;
+  padding: 0 14px 8px;
+  flex-shrink: 0;
+}
+#track-search, #track-sort {
+  background: var(--surface); border: 1px solid var(--surface-hi);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-size: 11px; padding: 4px 7px; outline: none;
+  min-width: 0;
+}
+#track-search { flex: 1; }
+#track-search::placeholder { color: var(--text-mute); }
+#track-search:focus, #track-sort:focus { border-color: var(--accent); }
+#track-sort { cursor: pointer; flex-shrink: 0; }
 
 /* Always worth several rows, whatever else is open above it. */
 #tracklist {

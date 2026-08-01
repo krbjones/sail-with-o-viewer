@@ -1,5 +1,6 @@
 import { state } from '../core/store.js';
-import { $, el } from '../core/dom.js';
+import { $, el, debounce } from '../core/dom.js';
+import { registerPref, savePrefs } from '../core/prefs.js';
 import { fmtTime, fmtDateTime, fmtDuration } from '../core/format.js';
 import { map } from '../map/mapSetup.js';
 import { bboxIntersects } from '../core/geo.js';
@@ -8,6 +9,8 @@ import { updateMarkers } from '../map/markerRenderer.js';
 import { stopAnim, updateAnimRange, setAnimTime, refreshAnim } from './animBar.js';
 import { deleteImported } from './importPanel.js';
 import { renderStats } from './statsPanel.js';
+import { closeDrawerAfterSelection } from './drawer.js';
+import { saveUrlState } from '../data/urlState.js';
 
 /** trackId → row element, so the animation loop never needs querySelector. */
 const rows = new Map();
@@ -35,6 +38,13 @@ export function clearSelection() {
   if (state.selectedTrack) selectTrack(state.selectedTrack);
 }
 
+/** Select a track by id, for restoring a shared link. No-op if not loaded. */
+export function restoreSelection(id) {
+  if (!id || state.selectedTrack) return;
+  const track = state.visibleTracks.find(t => t.id === id);
+  if (track) selectTrack(track);
+}
+
 /** Select (or deselect) a track and retarget the animation range at it. */
 function selectTrack(track) {
   stopAnim();
@@ -50,6 +60,10 @@ function selectTrack(track) {
   updateAnimRange();
   setAnimTime(state.animMin);
   refreshAnim();
+
+  saveUrlState();
+  // On a phone the drawer covers the map, so step aside to show the track.
+  if (state.selectedTrack) closeDrawerAfterSelection();
 }
 
 function buildRow(track) {
@@ -143,6 +157,32 @@ export function renderRows(tracks, emptyMessage) {
  * The list always follows the map extent — there is no separate "all filtered"
  * mode, so this is the single entry point for rendering the sidebar.
  */
+const SORTS = {
+  'date-desc': (a, b) => b.startTime - a.startTime,
+  'date-asc':  (a, b) => a.startTime - b.startTime,
+  'duration':  (a, b) => b.duration - a.duration,
+  'distance':  (a, b) => (b.distance || 0) - (a.distance || 0),
+  'maxSpd':    (a, b) => b.maxSpeed - a.maxSpeed,
+};
+
+/** Free-text haystack for a track: its formatted date, time and filename. */
+function searchText(track) {
+  if (!track._search) {
+    track._search = `${fmtDateTime(track.startTime)} ${fmtTime(track.startTime)} ${track.id}`.toLowerCase();
+  }
+  return track._search;
+}
+
+/**
+ * Every whitespace-separated term must appear somewhere in the track's text.
+ * A single substring match would fail the most natural query there is —
+ * "jul 2024" does not occur literally in "Mon, Jul 15, 2024".
+ */
+function matchesSearch(track, terms) {
+  const hay = searchText(track);
+  return terms.every(term => hay.includes(term));
+}
+
 export function renderForView() {
   // A map with no laid-out size reports a single degenerate point as its
   // bounds, which would filter every track out of the list. That happens in a
@@ -152,13 +192,21 @@ export function renderForView() {
   const bounds = map.getBounds();
   const usable = size.x > 0 && size.y > 0 && !bounds.getSouthWest().equals(bounds.getNorthEast());
 
-  const inView = usable
+  let list = usable
     ? state.visibleTracks.filter(t => bboxIntersects(t, bounds))
-    : state.visibleTracks;
+    : state.visibleTracks.slice();
 
-  renderRows(inView, state.visibleTracks.length
-    ? 'No tracks in current view.'
-    : 'No tracks in this date range.');
+  const query = ($('#track-search')?.value || '').trim().toLowerCase();
+  const terms = query ? query.split(/\s+/) : [];
+  if (terms.length) list = list.filter(t => matchesSearch(t, terms));
+
+  const sort = SORTS[$('#track-sort')?.value] || SORTS['date-desc'];
+  list = list.slice().sort(sort);
+
+  renderRows(list,
+    query                       ? 'Nothing matches that search.' :
+    state.visibleTracks.length  ? 'No tracks in current view.'
+                                : 'No tracks in this date range.');
 }
 
 /** Highlight a row as the animation cursor crosses its track. */
@@ -172,4 +220,16 @@ function applyActiveState(trackId, isActive) {
 
 export function initTrackList() {
   setActiveChangeHandler(applyActiveState);
+
+  registerPref('trackList', {
+    get: () => ({ search: $('#track-search').value, sort: $('#track-sort').value }),
+    set: v => {
+      if (typeof v.search === 'string') $('#track-search').value = v.search;
+      if (v.sort && SORTS[v.sort])      $('#track-sort').value   = v.sort;
+    },
+  });
+
+  const rerender = debounce(() => { renderForView(); savePrefs(); saveUrlState(); }, 120);
+  $('#track-search').addEventListener('input', rerender);
+  $('#track-sort').addEventListener('change', () => { renderForView(); savePrefs(); saveUrlState(); });
 }

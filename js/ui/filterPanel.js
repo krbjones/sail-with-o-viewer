@@ -9,6 +9,7 @@ import { loadTracksForRange, manifestRange } from '../data/trackLoader.js';
 import { registerPref, savePrefs } from '../core/prefs.js';
 import { refreshStorageInfo } from './storagePanel.js';
 import { renderStats } from './statsPanel.js';
+import { saveUrlState } from '../data/urlState.js';
 
 /** Current date filter as epoch ms, with open ends when a field is blank. */
 export function currentRange() {
@@ -71,7 +72,7 @@ export function initFilterPanel() {
   });
 
   for (const id of ['#date-from', '#date-to', '#time-from', '#time-to']) {
-    $(id).addEventListener('change', savePrefs);
+    $(id).addEventListener('change', () => { savePrefs(); saveUrlState(); });
   }
 
   $('#btn-apply').onclick = async () => {

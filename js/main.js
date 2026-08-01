@@ -11,12 +11,16 @@ import { fetchManifest } from './data/manifest.js';
 import { loadTracksForRange, syncCache, loadLocalTracks } from './data/trackLoader.js';
 
 import { initAnimBar, seekTo } from './ui/animBar.js';
-import { initTrackList, renderForView, clearSelection } from './ui/trackList.js';
+import { initTrackList, renderForView, clearSelection, restoreSelection } from './ui/trackList.js';
 import { initFilterPanel, applyFilter, setRange, currentRange } from './ui/filterPanel.js';
 import { initStoragePanel, refreshStorageInfo } from './ui/storagePanel.js';
 import { initImportPanel } from './ui/importPanel.js';
 import { initStatsPanel, setSeekHandler, setCloseHandler } from './ui/statsPanel.js';
 import { initKeyboard } from './ui/keyboard.js';
+import { initDrawer } from './ui/drawer.js';
+import {
+  readUrlState, applyUrlFilters, applyUrlView, startUrlSync, saveUrlState,
+} from './data/urlState.js';
 import { hideSplash, setSplashStatus, showSplashError, clearSplashError } from './ui/splash.js';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -53,9 +57,14 @@ async function boot() {
   await syncCache(manifest.months);
   await loadLocalTracks();
 
-  // Restore the saved filter, falling back to the most recent week of data.
+  // Saved preferences first, then the URL on top — a shared link should win
+  // over whatever this browser was last looking at.
   const saved = await loadPrefs();
-  if (!saved.filter || !saved.filter.from) {
+  const url   = readUrlState();
+  applyUrlFilters(url);
+
+  const haveRange = url.from || (saved.filter && saved.filter.from);
+  if (!haveRange) {
     let latestMs = -Infinity;
     for (const m of state.allTrackMeta) if (m.startMs > latestMs) latestMs = m.startMs;
     setRange(latestMs - WEEK_MS, latestMs);
@@ -72,6 +81,14 @@ async function boot() {
 
   hideSplash();
   applyFilter();
+
+  // A shared link's framing and selection beat applyFilter's auto-fit.
+  restoreSelection(url.sel);
+  if (applyUrlView(url)) renderForView();
+  if (url.t) seekTo(Number(url.t));
+
+  startUrlSync();
+  saveUrlState();     // publish the restored view so the link is copyable straight away
   refreshStorageInfo();
 }
 
@@ -84,6 +101,7 @@ function init() {
   initStoragePanel();
   initImportPanel();
   initStatsPanel();
+  initDrawer();
   initKeyboard();
 
   // Scrubbing the stats sparkline drives the animation cursor.
