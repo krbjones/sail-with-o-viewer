@@ -48,6 +48,10 @@ MOVING_MIN_KTS = 0.5            # below this the boat counts as stopped
 # rounding trips a 25 kt threshold hundreds of times in a perfectly clean track.
 # Distance separates them cleanly — real 1 Hz steps top out around 9 m
 # (p99.9 is under 7 m), while an actual teleport is hundreds of metres.
+# Note: about 20 tracks sustain 20-59 kt for minutes at a time. Those are not
+# glitches and must not be filtered — they are passages under power, confirmed
+# by the wind data (one averages 10.5 kt of boat speed in 9 kt of wind). The
+# distance test below is what keeps them: they move fast but never teleport.
 MAX_PLAUSIBLE_KTS     = 25.0
 MIN_GLITCH_METRES     = 50.0
 # Do not drop indefinitely: after a recording gap the boat really has moved, so
