@@ -8,6 +8,11 @@ export const MANIFEST_URL = 'tracks.json';
 export const DATA_DIR     = 'data';
 export const CHART_URL    = 'lac_deschennes_chart_1550_cog.tif';
 
+// ── Local database ────────────────────────────────────────────────
+export const DB_NAME    = 'sailwitho';
+/** v2 stores points as typed arrays rather than nested [lat,lon,t,spd] arrays. */
+export const DB_VERSION = 2;
+
 // ── Map defaults ──────────────────────────────────────────────────
 export const DEFAULT_CENTER = [45.4, -75.7];
 export const DEFAULT_ZOOM   = 10;

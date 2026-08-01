@@ -126,8 +126,18 @@ export function renderRows(tracks, emptyMessage) {
  * mode, so this is the single entry point for rendering the sidebar.
  */
 export function renderForView() {
+  // A map with no laid-out size reports a single degenerate point as its
+  // bounds, which would filter every track out of the list. That happens in a
+  // background tab, behind a drawer, or before first layout — show everything
+  // rather than an empty sidebar, and let the resize handler re-filter.
+  const size   = map.getSize();
   const bounds = map.getBounds();
-  const inView = state.visibleTracks.filter(t => bboxIntersects(t, bounds));
+  const usable = size.x > 0 && size.y > 0 && !bounds.getSouthWest().equals(bounds.getNorthEast());
+
+  const inView = usable
+    ? state.visibleTracks.filter(t => bboxIntersects(t, bounds))
+    : state.visibleTracks;
+
   renderRows(inView, state.visibleTracks.length
     ? 'No tracks in current view.'
     : 'No tracks in this date range.');

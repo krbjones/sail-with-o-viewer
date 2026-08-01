@@ -58,6 +58,56 @@ export function trackFromJSON(rec) {
   };
 }
 
+/**
+ * The storable form of a track: scalars plus the four point columns.
+ *
+ * Points go to IndexedDB as typed arrays, not as the nested [lat,lon,t,spd]
+ * arrays they arrive in. Structured-cloning ~2M small arrays is slower than
+ * re-downloading and JSON.parsing the same data (measured: 10.6 s vs 6.2 s),
+ * whereas cloning four typed arrays per track is close to a memcpy — and it
+ * lands in exactly the shape the app runs on, so there is nothing to rebuild.
+ */
+export function toCacheRecord(track, month, source = 'remote') {
+  return {
+    id: track.id, month, source,
+    s: track.startTime, e: track.endTime,
+    bbox: track.bbox
+      ? [track.bbox.minLat, track.bbox.minLon, track.bbox.maxLat, track.bbox.maxLon]
+      : null,
+    dist: track.distance, maxSpd: track.maxSpeed,
+    avgSpd: track.avgSpeed, movingMs: track.movingMs,
+    n: track.n,
+    times: track.times, lats: track.lats, lons: track.lons, speeds: track.speeds,
+  };
+}
+
+/** Rebuild a track from its cached form — no per-point work. */
+export function fromCacheRecord(rec) {
+  return {
+    id: rec.id,
+    filename: rec.id,
+    startTime: rec.s,
+    endTime:   rec.e,
+    duration:  rec.e - rec.s,
+    bbox: rec.bbox
+      ? { minLat: rec.bbox[0], minLon: rec.bbox[1], maxLat: rec.bbox[2], maxLon: rec.bbox[3] }
+      : null,
+
+    n: rec.n,
+    times: rec.times, lats: rec.lats, lons: rec.lons, speeds: rec.speeds,
+
+    maxSpeed: rec.maxSpd ?? 0,
+    avgSpeed: rec.avgSpd ?? 0,
+    distance: rec.dist   ?? 0,
+    movingMs: rec.movingMs ?? 0,
+
+    bucketLines: [],
+    shown: true,
+    _activeState: undefined,
+    source: rec.source,
+  };
+}
+
 /** Bearing between two indices, 0 when the points coincide. */
 function bearingAt(track, i, j) {
   if (track.lats[i] === track.lats[j] && track.lons[i] === track.lons[j]) return 0;

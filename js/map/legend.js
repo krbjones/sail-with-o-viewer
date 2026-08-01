@@ -1,5 +1,6 @@
 import { SPEED_COLORS, SPEED_LABELS } from '../config.js';
 import { $, el } from '../core/dom.js';
+import { registerPref, savePrefs } from '../core/prefs.js';
 
 /**
  * Build the speed legend and make it draggable.
@@ -48,10 +49,22 @@ export function initLegend() {
     if (legend.hasPointerCapture(pointerId)) legend.releasePointerCapture(pointerId);
     pointerId = null;
     legend.classList.remove('dragging');
+    savePrefs();
   };
 
   legend.addEventListener('pointerup', endDrag);
   legend.addEventListener('pointercancel', endDrag);
+
+  registerPref('legendPos', {
+    get: () => (legend.style.left ? { left: legend.style.left, top: legend.style.top } : null),
+    set: v => {
+      if (!v || !v.left) return;
+      legend.style.right  = 'auto';
+      legend.style.bottom = 'auto';
+      legend.style.left   = v.left;
+      legend.style.top    = v.top;
+    },
+  });
 
   return legend;
 }

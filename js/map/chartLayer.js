@@ -2,6 +2,7 @@ import { map } from './mapSetup.js';
 import { CHART_URL, CHART_INJECT_DELAY } from '../config.js';
 import { $, el } from '../core/dom.js';
 import { showProgress, setProgress, hideProgress, setStatus, getStatus } from '../ui/progress.js';
+import { registerPref, savePrefs } from '../core/prefs.js';
 
 /** Permanent layer group wrapper — always present in the layers control. */
 export const chartOverlayGroup = L.layerGroup();
@@ -9,6 +10,7 @@ export const chartOverlayGroup = L.layerGroup();
 let chartLayer     = null;
 let chartGeoRaster = null;
 let chartBgMode    = 'white';   // 'white' | 'black' | 'nodata' | 'none'
+let chartOpacity   = 1;
 
 const BG_MODES = [
   ['white',  'White background'],
@@ -64,18 +66,17 @@ export function injectChartControls() {
     if (!panel || $('#chart-ctrl-wrap')) return;
     if (!chartLayer) return;
 
-    const opacity = chartLayer.options.opacity ?? 1;
-
-    const pct = el('span', { id: 'chart-opacity-pct', text: Math.round(opacity * 100) + '%' });
+    const pct = el('span', { id: 'chart-opacity-pct', text: Math.round(chartOpacity * 100) + '%' });
 
     const slider = el('input', {
       type: 'range', id: 'chart-opacity-slider',
-      min: '0', max: '1', step: '0.05', value: String(opacity),
+      min: '0', max: '1', step: '0.05', value: String(chartOpacity),
       oninput: e => {
         e.stopPropagation();
-        const v = parseFloat(e.target.value);
-        chartLayer.setOpacity(v);
-        pct.textContent = Math.round(v * 100) + '%';
+        chartOpacity = parseFloat(e.target.value);
+        chartLayer.setOpacity(chartOpacity);
+        pct.textContent = Math.round(chartOpacity * 100) + '%';
+        savePrefs();
       }
     });
 
@@ -85,6 +86,7 @@ export function injectChartControls() {
         e.stopPropagation();
         chartBgMode = e.target.value;
         if (chartLayer) chartLayer.updateColors();
+        savePrefs();
       }
     }, BG_MODES.map(([val, lbl]) => {
       const opt = el('option', { value: val, text: lbl });
@@ -130,7 +132,7 @@ export async function loadChartFromUrl(url = CHART_URL) {
 
     chartLayer = new GeoRasterLayer({
       georaster,
-      opacity: 1,
+      opacity: chartOpacity,
       pane: 'chartPane',
       resolution: tileRes,
       pixelValuesToColorFn: chartPixelFn
@@ -162,4 +164,12 @@ export function wireChartLazyLoad() {
     injectChartControls();
   });
   map.on('overlayremove baselayerchange', () => injectChartControls());
+
+  registerPref('chart', {
+    get: () => ({ opacity: chartOpacity, bgMode: chartBgMode }),
+    set: v => {
+      if (typeof v.opacity === 'number') chartOpacity = v.opacity;
+      if (v.bgMode) chartBgMode = v.bgMode;
+    },
+  });
 }

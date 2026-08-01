@@ -6,6 +6,8 @@ import { clearMarkers } from '../map/markerRenderer.js';
 import { renderForView, setAllShown } from './trackList.js';
 import { updateAnimRange } from './animBar.js';
 import { loadTracksForRange, manifestRange } from '../data/trackLoader.js';
+import { registerPref, savePrefs } from '../core/prefs.js';
+import { refreshStorageInfo } from './storagePanel.js';
 
 /** Current date filter as epoch ms, with open ends when a field is blank. */
 export function currentRange() {
@@ -51,10 +53,31 @@ export function applyFilter() {
 }
 
 export function initFilterPanel() {
+  registerPref('filter', {
+    get: () => ({
+      from:     $('#date-from').value,
+      to:       $('#date-to').value,
+      timeFrom: $('#time-from').value,
+      timeTo:   $('#time-to').value,
+    }),
+    set: v => {
+      if (v.from)     $('#date-from').value = v.from;
+      if (v.to)       $('#date-to').value   = v.to;
+      $('#time-from').value = v.timeFrom || '';
+      $('#time-to').value   = v.timeTo   || '';
+    },
+  });
+
+  for (const id of ['#date-from', '#date-to', '#time-from', '#time-to']) {
+    $(id).addEventListener('change', savePrefs);
+  }
+
   $('#btn-apply').onclick = async () => {
     const { fromMs, toMs } = currentRange();
     await loadTracksForRange(fromMs, toMs);
     applyFilter();
+    refreshStorageInfo();
+    savePrefs();
   };
 
   // Show All spans the whole manifest, not just what happens to be loaded.
@@ -68,6 +91,8 @@ export function initFilterPanel() {
 
     await loadTracksForRange(range.min, range.max);
     applyFilter();
+    refreshStorageInfo();
+    savePrefs();
   };
 
   $('#btn-all').onclick  = () => setAllShown(true);

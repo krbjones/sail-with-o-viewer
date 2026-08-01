@@ -4,6 +4,7 @@ import { fmtDate, fmtTime, fmtDateTime } from '../core/format.js';
 import { updateMarkers } from '../map/markerRenderer.js';
 import { updateTrackStyles } from '../map/trackRenderer.js';
 import { STEP_MS, SLIDER_STEPS, UI_REFRESH_MS } from '../config.js';
+import { registerPref, savePrefs } from '../core/prefs.js';
 
 export function setAnimTime(t) {
   state.animTime = Math.max(state.animMin, Math.min(state.animMax, t));
@@ -137,6 +138,16 @@ export const togglePlay = () => state.isPlaying ? stopAnim() : startAnim();
 
 // ── Wiring ────────────────────────────────────────────────────────
 export function initAnimBar() {
+  registerPref('animSpeed', {
+    get: () => state.animSpeed,
+    set: v => {
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n)) return;
+      state.animSpeed = n;
+      $('#speed-select').value = String(n);
+    },
+  });
+
   $('#btn-play').onclick      = togglePlay;
   $('#btn-to-start').onclick  = () => seekTo(state.animMin);
   $('#btn-to-end').onclick    = () => seekTo(state.animMax);
@@ -151,5 +162,8 @@ export function initAnimBar() {
     updateMarkers();
   };
 
-  $('#speed-select').onchange = e => { state.animSpeed = parseInt(e.target.value, 10); };
+  $('#speed-select').onchange = e => {
+    state.animSpeed = parseInt(e.target.value, 10);
+    savePrefs();
+  };
 }

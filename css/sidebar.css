@@ -39,3 +39,10 @@
 #btn-showall:hover { background: var(--surface-hi); }
 
 #track-summary { font-size: 11px; color: var(--text-mute); margin-top: 8px; }
+
+.storage-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 6px;
+}
+#storage-info { font-size: 10px; color: var(--text-mute); line-height: 1.4; }
+.hidden { display: none !important; }
