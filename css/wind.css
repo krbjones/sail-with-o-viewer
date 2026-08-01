@@ -1,3 +1,12 @@
+/* The particle canvas fills its pane and never takes pointer events, so the
+   map still drags and the tracks underneath stay clickable. */
+.wind-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
 /* Placed by Leaflet as a bottom-left control, so no positioning here — only
    the margin the surrounding control corner uses. */
 #wind-panel {

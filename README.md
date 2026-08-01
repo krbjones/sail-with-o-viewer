@@ -46,14 +46,28 @@ Re-runs fetch only what is missing; `--force` refetches everything. The source
 is the [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api)
 (ERA5), which needs no API key.
 
-It drives the wind readout on the map, the point-of-sail colouring, and the
-speed-versus-wind-angle polar in the stats panel. All of it is optional — with
-`data/wind.json` absent the app behaves exactly as it did before.
+It drives the wind readout on the map, the point-of-sail colouring, the
+speed-versus-wind-angle polar in the stats panel, and the animated wind field
+(the **🌬 Wind field** overlay in the layers control). All of it is optional —
+with `data/wind.json` absent the app behaves exactly as it did before.
 
-**ERA5 is a reanalysis on a ~25 km grid.** It gives the regional picture, not
-what you felt: it cannot see lake thermals or shoreline effects. Treat the
-angles as indicative. For observed wind, Environment Canada publishes free
-hourly station data and Ottawa Airport is about 12 km from Lac Deschênes.
+Two deliberate limits: wind covers **2025 onward only**, and the grid that
+feeds the particle animation is built only for areas a North American model
+serves, so UK tracks get a point reading but no field. Both are set near the
+top of `build_wind.py` (`WIND_FROM`, `GRID_MODELS`).
+
+Models are tried finest-first and the first with data wins — HRDPS 2.5 km,
+then HRRR 3 km, then ICON-D2 2 km for Europe, with ERA5 at 25 km as a last
+resort. The UI names whichever ones actually supplied the data.
+
+**These are forecast models, not observations.** At 2.5 km nothing smaller
+than about 5 km is resolved, so lake thermals and shoreline effects are
+invisible and the hourly figures are means, not gusts. Treat the angles as
+indicative. For observed wind, Environment Canada publishes free hourly station
+data and Ottawa Airport is about 12 km from Lac Deschênes.
+
+The particle animation is not scaled to ground speed — at this zoom real wind
+would be imperceptible. It shows direction and relative strength.
 
 ## Layout
 

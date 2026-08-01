@@ -162,11 +162,10 @@ export function uvToWind(u, v) {
  * Grid wind at a position and time: bilinear in space, linear in time on the
  * components. Returns null outside the grid's footprint or time range.
  */
-export function gridWindAt(areaId, lat, lon, t) {
+export function gridUVAt(areaId, lat, lon, t) {
   const grid = gridsByArea.get(areaId);
   if (!grid || !gridData) return null;
 
-  const hours = grid.hours;
   const hourMs = 3600000;
   const before = Math.floor(t / hourMs) * hourMs;
   const after  = before + hourMs;
@@ -177,19 +176,34 @@ export function gridWindAt(areaId, lat, lon, t) {
   if (iBefore === undefined && iAfter === undefined) return null;
 
   // At an exact edge only one side exists; use it rather than refusing.
-  if (iBefore === undefined) return uvOf(bilinear(grid, iAfter, lat, lon));
-  if (iAfter  === undefined) return uvOf(bilinear(grid, iBefore, lat, lon));
+  if (iBefore === undefined) return bilinear(grid, iAfter, lat, lon);
+  if (iAfter  === undefined) return bilinear(grid, iBefore, lat, lon);
 
   const a = bilinear(grid, iBefore, lat, lon);
   const b = bilinear(grid, iAfter,  lat, lon);
   if (!a || !b) return null;
 
   const f = (t - before) / hourMs;
-  return uvOf([a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])]);
+  return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])];
 }
 
-function uvOf(uv) {
+/** Speed and direction from the grid, for a known area. */
+export function gridWindAt(areaId, lat, lon, t) {
+  const uv = gridUVAt(areaId, lat, lon, t);
   return uv ? uvToWind(uv[0], uv[1]) : null;
+}
+
+/**
+ * Raw components at any position, trying every grid.
+ * The particle field works in components and calls this per lattice node, so
+ * it skips the trigonometry of converting to speed and direction and back.
+ */
+export function windUVAt(lat, lon, t) {
+  for (const grid of gridsByArea.values()) {
+    const uv = gridUVAt(grid.area, lat, lon, t);
+    if (uv) return uv;
+  }
+  return null;
 }
 
 /** Nearest sailing area to a position, by squared degrees — areas are far apart. */

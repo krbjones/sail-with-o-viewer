@@ -4,7 +4,8 @@ import { loadPrefs, flushPrefs } from './core/prefs.js';
 import { VIEW_DEBOUNCE_MS } from './config.js';
 
 import { map } from './map/mapSetup.js';
-import { initLayers } from './map/layersControl.js';
+import { initLayers, addWindOverlay } from './map/layersControl.js';
+import { createWindParticleLayer } from './map/windParticles.js';
 import { initLegend, enableColorModes, disableColorModes, setColorModeHandler } from './map/legend.js';
 import { renderTracks } from './map/trackRenderer.js';
 
@@ -91,6 +92,11 @@ async function boot() {
   if (await loadWind()) {
     initWindLayer();
     enableColorModes();
+
+    // Offered only when there is a grid to animate, and only if the browser has
+    // not asked for reduced motion.
+    const particles = createWindParticleLayer(map);
+    if (particles) addWindOverlay(particles);
   } else {
     disableColorModes();
   }

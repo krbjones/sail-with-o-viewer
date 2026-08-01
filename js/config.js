@@ -18,6 +18,10 @@ export const MAX_WIND_GAP_MS = 2 * 3600000;
 /** Below this the boat is not under way, so it has no meaningful heading. */
 export const MOVING_MIN_KTS  = 0.5;
 
+/** Pane for the particle field: above the tiles (200), below the tracks (400). */
+export const WIND_PANE   = 'windPane';
+export const WIND_PANE_Z = 350;
+
 // ── Local database ────────────────────────────────────────────────
 export const DB_NAME    = 'sailwitho';
 /** v2 stores points as typed arrays rather than nested [lat,lon,t,spd] arrays. */

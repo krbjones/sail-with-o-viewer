@@ -11,6 +11,17 @@ const OVERLAYS = {
   '📄 Lac Deschênes Chart': chartOverlayGroup,
 };
 
+/**
+ * Add the wind field to the overlays once the grid is known to exist, and
+ * rebuild the control so it appears. Registered late because the grid loads
+ * after the map is up; leaving it out entirely is the honest outcome when
+ * there is no grid, rather than a control that does nothing.
+ */
+export function addWindOverlay(layer) {
+  OVERLAYS['🌬 Wind field'] = layer;
+  buildLayersControl();
+}
+
 export function buildLayersControl() {
   if (layersControl) layersControl.remove();
 
