@@ -1,7 +1,7 @@
 import { el } from '../core/dom.js';
 import { map } from './mapSetup.js';
 import { state } from '../core/store.js';
-import { windLoaded, windForTrack, trueWindAngle, pointOfSail, tackOf } from '../data/wind.js';
+import { windLoaded, windForTrack, trueWindAngle, pointOfSail, tackOf, windProvenance } from '../data/wind.js';
 import { interpolate } from '../data/trackModel.js';
 
 let panel = null;
@@ -27,7 +27,7 @@ export function initWindLayer() {
   const from   = el('div',  { class: 'wind-from', text: '' });
   const sail   = el('div',  { class: 'wind-sail', text: '' });
 
-  panel = el('div', { id: 'wind-panel', title: 'ERA5 reanalysis (~25 km grid) — not a local observation' }, [
+  panel = el('div', { id: 'wind-panel', title: `${windProvenance()} — a forecast model, not a local observation` }, [
     el('div', { class: 'wind-title', text: 'Wind' }),
     el('div', { class: 'wind-body' }, [
       arrow,

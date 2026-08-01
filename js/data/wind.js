@@ -18,6 +18,13 @@ let meta = null;
 export function windLoaded() { return loaded && byArea.size > 0; }
 export function windMeta()   { return meta; }
 
+/** One line naming the models behind the data, for the UI caveat. */
+export function windProvenance() {
+  if (!meta || !meta.models || !meta.models.length) return 'Model wind';
+  const names = meta.models.map(([name]) => name);
+  return names.length === 1 ? names[0] : `${names[0]} (plus ${names.slice(1).join(', ')})`;
+}
+
 /** Fetch wind.json once. Absent or unreadable simply means no wind features. */
 export async function loadWind() {
   if (loaded) return windLoaded();
@@ -29,7 +36,24 @@ export async function loadWind() {
     const doc = await r.json();
 
     areas = doc.areas || [];
-    meta  = { stamp: doc.stamp, built: doc.built, source: doc.source, hours: (doc.hours || []).length };
+
+    // Which models supplied the data, commonest first. Stated in the UI rather
+    // than hardcoded, so the caveat cannot drift out of step with the file.
+    const names = doc.models || [];
+    const tally = new Map();
+    for (const row of doc.hours || []) {
+      const idx = row[5];
+      const name = idx != null && names[idx] ? names[idx] : 'unknown model';
+      tally.set(name, (tally.get(name) || 0) + 1);
+    }
+
+    meta = {
+      stamp: doc.stamp,
+      built: doc.built,
+      source: doc.source,
+      hours: (doc.hours || []).length,
+      models: [...tally.entries()].sort((a, b) => b[1] - a[1]),
+    };
 
     byArea = new Map();
     for (const row of doc.hours || []) {

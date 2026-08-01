@@ -3,7 +3,7 @@ import { state } from '../core/store.js';
 import { fmtDuration, fmtDateTime, fmtTime } from '../core/format.js';
 import { speedBucket } from '../core/geo.js';
 import { SPEED_COLORS, SPEED_LABELS } from '../config.js';
-import { POINTS_OF_SAIL, windForTrack } from '../data/wind.js';
+import { POINTS_OF_SAIL, windForTrack, windProvenance } from '../data/wind.js';
 import { analysePolar } from '../data/polar.js';
 
 /** Mean wind over the track, sampled hourly. */
@@ -252,7 +252,7 @@ export function renderStats() {
     (polar
       ? `<div class="chart-title">Points of sail</div>${sailBarSVG(polar.sailMs)}` +
         `<div class="chart-title">Speed vs true wind angle</div>${polarSVG(polar, track.maxSpeed)}` +
-        `<div class="wind-caveat">Wind from ERA5 reanalysis (~25 km grid) — regional, not what you felt on the water.</div>`
+        `<div class="wind-caveat">Wind from ${windProvenance()} — a forecast model, not what you felt on the water.</div>`
       : '');
 
   // Click or drag along the sparkline to scrub the animation
