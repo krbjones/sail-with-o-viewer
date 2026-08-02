@@ -19,20 +19,23 @@ const BG_MODES = [
   ['none',   'None (show all)'],
 ];
 
+/** True once we know the raster carries its own alpha. */
+let chartHasAlpha = false;
+
 /** Per-pixel colour function — reads chartBgMode at render time so redraws pick up changes. */
 function chartPixelFn(vals) {
   const n = vals.length;
 
-  // RGBA — honour the alpha channel, then apply the same background keying as RGB
+  // With an alpha band, alpha is the whole story — no colour keying at all.
+  //
+  // This chart uses black for both the surround and its own ink: soundings,
+  // contours, labels. Any threshold that clears the corners also punches
+  // pinholes through 10,528 pixels of chart detail, which is why no setting in
+  // the dropdown could ever be right. build_chart.py separates the two by
+  // connectivity instead and bakes the result into band 4.
   if (n >= 4) {
     const [r, g, b, a] = vals;
     if (a === 0) return null;
-    if (chartBgMode === 'white' && r >= 248 && g >= 248 && b >= 248) return null;
-    if (chartBgMode === 'black' && r <=   7 && g <=   7 && b <=   7) return null;
-    if (chartBgMode === 'nodata' && chartGeoRaster != null &&
-        r === chartGeoRaster.noDataValue &&
-        g === chartGeoRaster.noDataValue &&
-        b === chartGeoRaster.noDataValue) return null;
     return `rgba(${r},${g},${b},${a / 255})`;
   }
 
@@ -80,26 +83,36 @@ export function injectChartControls() {
       }
     });
 
-    const bgSelect = el('select', {
-      id: 'chart-bg-mode',
-      onchange: e => {
-        e.stopPropagation();
-        chartBgMode = e.target.value;
-        if (chartLayer) chartLayer.updateColors();
-        savePrefs();
-      }
-    }, BG_MODES.map(([val, lbl]) => {
-      const opt = el('option', { value: val, text: lbl });
-      if (val === chartBgMode) opt.selected = true;
-      return opt;
-    }));
-
-    panel.appendChild(el('div', { id: 'chart-ctrl-wrap' }, [
+    const controls = [
       el('div', { class: 'chart-ctrl-label' }, [el('span', { text: 'Chart opacity' }), pct]),
       slider,
-      el('div', { class: 'chart-ctrl-sublabel', text: 'Transparent background' }),
-      bgSelect,
-    ]));
+    ];
+
+    // The colour-key modes only exist for a raster with no alpha of its own.
+    // Offering them for one that has alpha is how the chart ended up stripping
+    // its own white paper by default.
+    if (!chartHasAlpha) {
+      const bgSelect = el('select', {
+        id: 'chart-bg-mode',
+        onchange: e => {
+          e.stopPropagation();
+          chartBgMode = e.target.value;
+          if (chartLayer) chartLayer.updateColors();
+          savePrefs();
+        }
+      }, BG_MODES.map(([val, lbl]) => {
+        const opt = el('option', { value: val, text: lbl });
+        if (val === chartBgMode) opt.selected = true;
+        return opt;
+      }));
+
+      controls.push(
+        el('div', { class: 'chart-ctrl-sublabel', text: 'Transparent background' }),
+        bgSelect,
+      );
+    }
+
+    panel.appendChild(el('div', { id: 'chart-ctrl-wrap' }, controls));
   }, CHART_INJECT_DELAY);
 }
 
@@ -128,7 +141,11 @@ export async function loadChartFromUrl(url = CHART_URL) {
     if (chartLayer) map.removeLayer(chartLayer);
 
     chartGeoRaster = georaster;
+    chartHasAlpha  = (georaster.numberOfRasters ?? 0) >= 4;
     const tileRes  = arrayBuffer.byteLength > 30 * 1024 * 1024 ? 128 : 256;
+
+    console.info(`Chart: ${georaster.numberOfRasters} band(s), ` +
+      (chartHasAlpha ? 'alpha honoured' : `no alpha, colour-keyed (${chartBgMode})`));
 
     chartLayer = new GeoRasterLayer({
       georaster,
