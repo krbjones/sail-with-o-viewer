@@ -314,6 +314,58 @@ def content_stamp(obj):
     return hashlib.sha1(payload).hexdigest()[:12]
 
 
+def load_existing_grid(desired):
+    """
+    {(areaId, timeMs): [(u, v), ...]} from the previous wind-grid.bin.
+
+    Without this the grid is silently destroyed by any incremental run: the
+    binary is rebuilt from scratch, but only months that were actually fetched
+    contribute cells, and months whose point rows are already cached are never
+    fetched. Adding one track collapsed the grid from 344 hours to 5.
+
+    Cells are only reused where the geometry still matches. If the grid has
+    moved or resized — a new track extending the area does that — the stored
+    cells describe different points on the ground, so they are dropped and
+    refetched.
+    """
+    if not (os.path.exists(OUT_PATH) and os.path.exists(GRID_PATH)):
+        return {}
+    try:
+        with open(OUT_PATH, encoding='utf-8') as f:
+            doc = json.load(f)
+        if doc.get('format') != FORMAT:
+            return {}
+        blob = array.array('b')
+        with open(GRID_PATH, 'rb') as f:
+            blob.frombytes(f.read())
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}
+
+    out = {}
+    for spec in doc.get('grids', []):
+        area_id = spec['area']
+        want = desired.get(area_id)
+        if not want:
+            continue
+
+        same = (spec['nLat'] == want['nLat'] and spec['nLon'] == want['nLon'] and
+                all(abs(spec[k] - want[k]) < 1e-9 for k in ('lat0', 'lon0', 'dLat', 'dLon')))
+        if not same:
+            print(f'  area {area_id}: grid geometry changed, refetching it')
+            continue
+
+        n      = spec['nLat'] * spec['nLon']
+        stride = n * 2
+        scale  = spec.get('scale', QUANT_KN)
+        for i, t_ms in enumerate(spec['hours']):
+            o = spec['offset'] + i * stride
+            if o + stride > len(blob):
+                break
+            out[(area_id, t_ms)] = [(blob[o + k * 2] * scale, blob[o + k * 2 + 1] * scale)
+                                    for k in range(n)]
+    return out
+
+
 def load_existing():
     """
     {(areaId, timeMs): row} already fetched, so re-runs only get what is new.
@@ -359,15 +411,22 @@ def main():
     failures  = []
     used      = {}      # model index -> hours fetched, for the summary
 
-    # Grids are always rebuilt: the binary has no per-row provenance to merge
-    # against, and at this size refetching costs little.
     grids     = {a['id']: grid_for(a) for a in areas}
     grids     = {k: g for k, g in grids.items() if g}
-    grid_rows = {}      # (areaId, timeMs) -> [(u, v), ...] in grid order
+    # (areaId, timeMs) -> [(u, v), ...] in grid order, carried over where the
+    # geometry is unchanged so an incremental run does not wipe the field.
+    grid_rows = {} if force else load_existing_grid(grids)
+    if grid_rows:
+        print(f'Reusing {len(grid_rows)} grid hour(s) already fetched\n')
 
     for area in areas:
         hours = wanted_hours(area)
-        missing = {h for h in hours if (area['id'], h * HOUR_MS) not in rows}
+        missing_points = {h for h in hours if (area['id'], h * HOUR_MS) not in rows}
+        # An hour can have its point row cached but no grid cells — after a
+        # geometry change, or the first run after the grid was introduced.
+        missing_grid = ({h for h in hours if (area['id'], h * HOUR_MS) not in grid_rows}
+                        if area['id'] in grids else set())
+        missing = missing_points | missing_grid
 
         label = f"area {area['id']} ({area['lat']:.3f}, {area['lon']:.3f}) - {len(area['tracks'])} track(s)"
         if not missing:
