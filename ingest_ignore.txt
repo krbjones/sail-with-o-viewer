@@ -1,0 +1,12 @@
+# Tracks watch_drive.py must never ingest from the Drive folder.
+#
+# One per line: either a filename, or a start time as epoch milliseconds
+# (matched against the first timestamp inside the file, so a rename cannot
+# sneak the same track back in). Blank lines and # comments are ignored.
+#
+# Without this, deleting a track from the repo only lasts until the next poll,
+# because the file is still sitting in Drive.
+#
+# Examples:
+#   2026-08-01_11-19-07.gpx     # SailFreeGPS bench test, boat never left the dock
+#   1785592164000               # the same track, by start time
