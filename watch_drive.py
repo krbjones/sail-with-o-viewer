@@ -187,12 +187,19 @@ def tree_is_clean_enough():
     Refuse to commit alongside unrelated edits. A watcher that commits whatever
     it finds will eventually publish someone's half-finished work.
     """
-    out = git('status', '--porcelain').stdout.strip()
-    if not out:
+    # Do not strip the whole output: porcelain lines begin with two status
+    # characters and a space, and stripping eats the leading space on the first
+    # line, shifting every path by one character. That silently turned
+    # "data/..." into "ata/..." and flagged it as unrelated.
+    lines = [l for l in git('status', '--porcelain').stdout.splitlines() if l.strip()]
+    if not lines:
         return True, []
+
     dirty = []
-    for line in out.splitlines():
+    for line in lines:
         path = line[3:].strip().strip('"')
+        if ' -> ' in path:               # a rename; judge it by where it landed
+            path = path.split(' -> ', 1)[1].strip().strip('"')
         top = path.split('/')[0]
         if top in STAGE_PATHS or path.lower().endswith('.gpx') or path == os.path.basename(LOG_PATH):
             continue
