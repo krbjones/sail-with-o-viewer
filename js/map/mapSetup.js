@@ -1,10 +1,13 @@
-import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../config.js';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, CHART_PANE, CHART_PANE_Z } from '../config.js';
 
 export const map = L.map('map', { zoomControl: true }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-// Custom pane so the chart always renders above track polylines (overlayPane z=400)
-map.createPane('chartPane');
-map.getPane('chartPane').style.zIndex = 350;
+// The chart sits below the tracks (overlayPane z=400). It used to be above
+// them, which mattered little while its background was broken; now that it is
+// genuinely opaque where the paper is, it would hide the tracks completely.
+// See config.js for the full pane order.
+map.createPane(CHART_PANE);
+map.getPane(CHART_PANE).style.zIndex = CHART_PANE_Z;
 
 export const trackLayer  = L.layerGroup().addTo(map);
 export const markerLayer = L.layerGroup().addTo(map);

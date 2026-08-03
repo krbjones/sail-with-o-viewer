@@ -1,5 +1,5 @@
 import { map } from './mapSetup.js';
-import { CHART_URL, CHART_INJECT_DELAY } from '../config.js';
+import { CHART_URL, CHART_INJECT_DELAY, CHART_PANE } from '../config.js';
 import { $, el } from '../core/dom.js';
 import { showProgress, setProgress, hideProgress, setStatus, getStatus } from '../ui/progress.js';
 import { registerPref, savePrefs } from '../core/prefs.js';
@@ -150,7 +150,7 @@ export async function loadChartFromUrl(url = CHART_URL) {
     chartLayer = new GeoRasterLayer({
       georaster,
       opacity: chartOpacity,
-      pane: 'chartPane',
+      pane: CHART_PANE,
       resolution: tileRes,
       pixelValuesToColorFn: chartPixelFn
     });

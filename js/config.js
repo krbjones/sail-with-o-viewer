@@ -19,9 +19,20 @@ export const MAX_WIND_GAP_MS = 2 * 3600000;
 /** Below this the boat is not under way, so it has no meaningful heading. */
 export const MOVING_MIN_KTS  = 0.5;
 
-/** Pane for the particle field: above the tiles (200), below the tracks (400). */
-export const WIND_PANE   = 'windPane';
-export const WIND_PANE_Z = 350;
+// Pane stacking, all below Leaflet's overlayPane (400) so track lines stay on
+// top of everything. Distinct values on purpose: at equal z-index the order
+// falls back to DOM insertion, which is invisible and changes if the creation
+// order ever does.
+//
+//   tiles 200  <  chart 340  <  wind particles 350  <  tracks 400  <  markers 600
+//
+// The chart sits under the particles rather than over them: it is opaque where
+// the paper is, and it covers exactly the water you sail on, so above the
+// particles it would hide the wind field entirely.
+export const CHART_PANE   = 'chartPane';
+export const CHART_PANE_Z = 340;
+export const WIND_PANE    = 'windPane';
+export const WIND_PANE_Z  = 350;
 
 // ── Local database ────────────────────────────────────────────────
 export const DB_NAME    = 'sailwitho';
