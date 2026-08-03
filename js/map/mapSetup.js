@@ -4,7 +4,7 @@ export const map = L.map('map', { zoomControl: true }).setView(DEFAULT_CENTER, D
 
 // Custom pane so the chart always renders above track polylines (overlayPane z=400)
 map.createPane('chartPane');
-map.getPane('chartPane').style.zIndex = 450;
+map.getPane('chartPane').style.zIndex = 350;
 
 export const trackLayer  = L.layerGroup().addTo(map);
 export const markerLayer = L.layerGroup().addTo(map);
