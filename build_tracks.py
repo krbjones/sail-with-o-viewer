@@ -364,6 +364,18 @@ def main():
 
         records = existing = None   # free before the next month
 
+    # Remove bundles no month claims any more. Deleting the last track in a
+    # month leaves its file behind otherwise: the loop above only writes months
+    # it still has records for, so nothing ever cleans up the empty one and it
+    # sits on disk unreferenced by tracks.json.
+    for name in sorted(os.listdir(DATA_DIR)):
+        if not (name.endswith('.json') and name[0].isdigit()):
+            continue                       # wind.json, races.json and friends
+        if name[:-5] in months:
+            continue
+        os.remove(os.path.join(DATA_DIR, name))
+        print(f'  removed data/{name} - no tracks left in that month')
+
     manifest.sort(key=lambda m: m['startMs'])
     with open(os.path.join(FOLDER, 'tracks.json'), 'w', encoding='utf-8') as f:
         json.dump({

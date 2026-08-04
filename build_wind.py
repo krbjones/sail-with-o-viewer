@@ -498,8 +498,17 @@ def main():
     stale = [k for k in rows if k not in wanted]
     for k in stale:
         del rows[k]
-    if stale:
-        print(f'\nPruned {len(stale)} hour(s) no longer covered by any track')
+
+    # The grid needs the same treatment. Pruning only the point rows left a
+    # deleted track's wind field in wind-grid.bin forever, so the binary grew
+    # monotonically and never shrank.
+    stale_grid = [k for k in grid_rows if k not in wanted]
+    for k in stale_grid:
+        del grid_rows[k]
+
+    if stale or stale_grid:
+        print(f'\nPruned {len(stale)} point hour(s) and {len(stale_grid)} grid hour(s) '
+              f'no longer covered by any track')
 
     if not rows:
         sys.exit('\nNo wind data retrieved; leaving data/wind.json alone.')

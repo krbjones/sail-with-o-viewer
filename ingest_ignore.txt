@@ -4,8 +4,11 @@
 # (matched against the first timestamp inside the file, so a rename cannot
 # sneak the same track back in). Blank lines and # comments are ignored.
 #
-# Without this, deleting a track from the repo only lasts until the next poll,
-# because the file is still sitting in Drive.
+# This is for a file you want to KEEP in Drive but not publish. To remove a
+# track outright, just delete it from Drive — the watcher notices the absence
+# and drops it from the site on its own, so no entry here is needed. (Before
+# deletion sync existed, an entry here was the only way to stop the watcher
+# putting a hand-removed track straight back.)
 #
 # Examples:
 #   2026-08-01_11-19-07.gpx     # SailFreeGPS bench test, boat never left the dock

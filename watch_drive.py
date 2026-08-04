@@ -35,6 +35,23 @@ POLL_SECONDS  = 30
 # then looks like it has already been seen.
 SETTLE_POLLS  = 2
 
+# ── Deletion ──────────────────────────────────────────────────────
+#
+# Removing a track is driven by absence, and absence is also what a Drive mount
+# that has not finished starting looks like. An addition that fails does
+# nothing; a deletion that fails wrongly empties the archive. Hence the guards.
+
+# Checked on a slower cycle than additions: nothing about removing a track is
+# urgent, and the scan reads the first timestamp of every file in Drive.
+DELETE_CHECK_SECONDS = 600
+# A track must be missing from Drive this many checks running before it goes.
+DELETE_CONFIRMATIONS = 2
+# If Drive holds less than this fraction of what the repo has, assume the mount
+# is not ready rather than that everything was deleted.
+DELETE_MIN_RATIO     = 0.90
+# More than this in one run is not an afternoon's tidying. Needs the flag.
+DELETE_MAX_PER_RUN   = 3
+
 # Only these are ever staged. Never `git add -A`, or an unattended commit will
 # sweep up whatever happens to be open in the editor.
 STAGE_PATHS   = ['data', 'tracks.json']
@@ -145,6 +162,97 @@ def stable_files(seen):
     return sorted(ready)
 
 
+def drive_start_times(cache):
+    """
+    {startMs: filename} for everything currently in Drive, or None if the folder
+    could not be read.
+
+    None and {} mean very different things here: one is "I could not look", the
+    other is "I looked and it is empty". Only the second is evidence.
+
+    Reading the first timestamp of 200-odd files every cycle is wasteful, so
+    results are cached against (size, mtime) and only files that actually
+    changed are reparsed.
+    """
+    try:
+        entries = os.listdir(WATCH_DIR)
+    except OSError as e:
+        log(f'  cannot read {WATCH_DIR} ({e}); skipping the deletion check')
+        return None
+
+    starts, seen = {}, set()
+    for name in entries:
+        if not name.lower().endswith('.gpx'):
+            continue
+        path = os.path.join(WATCH_DIR, name)
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        if st.st_size == 0:
+            continue
+
+        seen.add(name)
+        sig = (st.st_size, int(st.st_mtime))
+        hit = cache.get(name)
+        if hit and hit[0] == sig:
+            start = hit[1]
+        else:
+            start = first_time_ms(path)
+            cache[name] = (sig, start)
+
+        if start is not None:
+            starts[start] = name
+
+    for gone in set(cache) - seen:       # keep the cache from growing forever
+        del cache[gone]
+    return starts
+
+
+def find_deletions(drive_starts, pending, confirmations=DELETE_CONFIRMATIONS):
+    """
+    Tracks in the repo whose start time is no longer anywhere in Drive.
+
+    Matching on start time rather than filename is what makes a rename in Drive
+    harmless: the file appears under a new name, but the timestamp inside it is
+    unchanged, so nothing looks deleted.
+
+    `pending` counts how many consecutive checks each track has been missing and
+    is updated in place.
+    """
+    repo = known_start_times()           # {startMs: filename}
+    if not repo:
+        return [], 'no manifest to compare against'
+
+    if len(drive_starts) < len(repo) * DELETE_MIN_RATIO:
+        pending.clear()
+        return [], (f'Drive holds {len(drive_starts)} track(s) against {len(repo)} in the repo, '
+                    f'below the {DELETE_MIN_RATIO:.0%} floor — assuming the mount is not ready')
+
+    _, ignored_starts = ignored_entries()
+
+    missing = {}
+    for start, fname in repo.items():
+        if start in drive_starts or start in ignored_starts:
+            continue
+        missing[start] = fname
+
+    for start in list(pending):           # reappeared, so reset its count
+        if start not in missing:
+            del pending[start]
+
+    confirmed = []
+    for start, fname in sorted(missing.items()):
+        pending[start] = pending.get(start, 0) + 1
+        if pending[start] >= confirmations:
+            confirmed.append((fname, start))
+        else:
+            log(f'  {fname} missing from Drive '
+                f'({pending[start]}/{confirmations} checks) — waiting')
+
+    return confirmed, None
+
+
 def classify(names):
     """Split candidates into (to_ingest, [(name, reason_skipped)])."""
     known   = known_start_times()
@@ -207,17 +315,22 @@ def tree_is_clean_enough():
     return not dirty, dirty
 
 
-def publish(new_names, push):
-    git('add', '--', *STAGE_PATHS, *new_names)
+def publish(names, push, subject=None, body=None):
+    # `git add` stages a removal as readily as an addition, so the same path
+    # works for both directions.
+    git('add', '--', *STAGE_PATHS, *names)
 
     if not git('diff', '--cached', '--name-only').stdout.strip():
         log('  nothing staged after the build; no commit')
         return
 
-    subject = (f'Add track {new_names[0]}' if len(new_names) == 1
-               else f'Add {len(new_names)} tracks')
-    body = 'Ingested automatically from the Drive folder by watch_drive.py.\n\n' \
-           + '\n'.join(f'  {n}' for n in new_names)
+    if subject is None:
+        subject = (f'Add track {names[0]}' if len(names) == 1
+                   else f'Add {len(names)} tracks')
+    if body is None:
+        body = 'Ingested automatically from the Drive folder by watch_drive.py.\n\n' \
+               + '\n'.join(f'  {n}' for n in names)
+
     git('commit', '-m', subject, '-m', body)
     log(f'  committed: {subject}')
 
@@ -297,11 +410,67 @@ def pass_once(seen, dry_run, push):
     publish(names, push)
 
 
+def delete_pass(state, dry_run, push, allow_bulk, confirmations=DELETE_CONFIRMATIONS):
+    """Remove tracks that have gone from Drive. Returns True if it committed."""
+    drive_starts = drive_start_times(state['start_cache'])
+    if drive_starts is None:
+        return False                      # could not look; never a reason to delete
+
+    confirmed, blocked = find_deletions(drive_starts, state['pending_deletes'],
+                                        confirmations)
+    if blocked:
+        log(f'  {blocked}')
+        return False
+    if not confirmed:
+        return False
+
+    for fname, start in confirmed:
+        when = datetime.fromtimestamp(start / 1000).strftime('%Y-%m-%d %H:%M')
+        log(f'gone from Drive: {fname} (started {when} local)')
+
+    if len(confirmed) > DELETE_MAX_PER_RUN and not allow_bulk:
+        log(f'  {len(confirmed)} deletions in one run exceeds the cap of '
+            f'{DELETE_MAX_PER_RUN}; rerun with --allow-bulk-delete if that is deliberate')
+        return False
+
+    if dry_run:
+        log('  --dry-run, stopping here')
+        return False
+
+    clean, dirty = tree_is_clean_enough()
+    if not clean:
+        log(f'  working tree has unrelated changes, refusing to commit: {", ".join(dirty[:5])}')
+        return False
+
+    names = []
+    for fname, _start in confirmed:
+        path = os.path.join(FOLDER, fname)
+        if os.path.exists(path):
+            os.remove(path)
+        names.append(fname)
+
+    # build_tracks rebuilds the manifest and bundles from whatever .gpx files
+    # remain, so removing the file is all it takes; build_wind then prunes the
+    # hours nothing covers any more.
+    if not run_build('build_tracks.py', ['--skip-existing']):
+        log('  build_tracks failed; leaving the tree for inspection')
+        return False
+    run_build('build_wind.py', required=False)
+
+    subject = (f'Remove track {names[0]}' if len(names) == 1
+               else f'Remove {len(names)} tracks')
+    publish(names, push, subject=subject,
+            body='Deleted from the Drive folder, removed by watch_drive.py.\n\n'
+                 + '\n'.join(f'  {n}' for n in names))
+    return True
+
+
 def main():
     global WATCH_DIR
-    dry_run = '--dry-run' in sys.argv
-    once    = '--once' in sys.argv
-    push    = '--no-push' not in sys.argv
+    dry_run    = '--dry-run' in sys.argv
+    once       = '--once' in sys.argv
+    push       = '--no-push' not in sys.argv
+    allow_bulk = '--allow-bulk-delete' in sys.argv
 
     # Handy for testing against a scratch folder, and for the day Drive comes
     # back on a different drive letter.
@@ -315,16 +484,29 @@ def main():
     log(f'watching {WATCH_DIR}' + (' (dry run)' if dry_run else '')
         + (' (single pass)' if once else f', every {POLL_SECONDS}s'))
 
-    seen = {}
+    seen  = {}
+    state = {'start_cache': {}, 'pending_deletes': {}}
+
     if once:
         # Nothing has been observed yet, so prime the settle state and look again.
         stable_files(seen)
         pass_once(seen, dry_run, push)
+        # An interactive --once is itself the confirmation. Requiring two checks
+        # guards against a Drive mount blinking out between polls; it cannot
+        # protect a single deliberate run, it would only make it do nothing.
+        delete_pass(state, dry_run, push, allow_bulk, confirmations=1)
         return
 
+    next_delete_check = time.monotonic()            # check once at startup
     while True:
         try:
             pass_once(seen, dry_run, push)
+
+            # Off the hot path: removing a track is never urgent, and the
+            # start-time scan touches every file in the folder.
+            if time.monotonic() >= next_delete_check:
+                delete_pass(state, dry_run, push, allow_bulk)
+                next_delete_check = time.monotonic() + DELETE_CHECK_SECONDS
         except KeyboardInterrupt:
             log('stopped')
             return
