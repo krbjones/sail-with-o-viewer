@@ -18,5 +18,6 @@ desktop.ini
 # Python bytecode (serve.py imports build_tracks during testing)
 __pycache__/
 
-# Watcher log, local only
+# Watcher log and pending-deletion counters, local only
 watch_drive.log
+watch_drive_state.json

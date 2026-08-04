@@ -25,6 +25,7 @@ FOLDER    = os.path.dirname(os.path.abspath(__file__))
 MANIFEST  = os.path.join(FOLDER, 'tracks.json')
 IGNORE    = os.path.join(FOLDER, 'ingest_ignore.txt')
 LOG_PATH  = os.path.join(FOLDER, 'watch_drive.log')
+STATE_PATH = os.path.join(FOLDER, 'watch_drive_state.json')
 
 WATCH_DIR = r'G:\My Drive\Sailing_Geospatial_Data_KevinJONES'
 
@@ -43,7 +44,7 @@ SETTLE_POLLS  = 2
 
 # Checked on a slower cycle than additions: nothing about removing a track is
 # urgent, and the scan reads the first timestamp of every file in Drive.
-DELETE_CHECK_SECONDS = 600
+DELETE_CHECK_SECONDS = 300
 # A track must be missing from Drive this many checks running before it goes.
 DELETE_CONFIRMATIONS = 2
 # If Drive holds less than this fraction of what the repo has, assume the mount
@@ -160,6 +161,39 @@ def stable_files(seen):
     seen.clear()
     seen.update(current)
     return sorted(ready)
+
+
+def load_pending():
+    """
+    Restore the missing-track counts from the last run.
+
+    These have to outlive the process. The counter exists so an absence has to
+    show up twice before it is acted on, but a restart between the two checks
+    used to reset it to zero — so a watcher restarted more often than
+    DELETE_CHECK_SECONDS could never delete anything at all, and would just log
+    '1/2 checks' forever.
+
+    Counting a check from a previous process is sound: what the rule wants is
+    two independent reads of Drive that both show the file gone, and it makes no
+    difference which process did the reading. The floor and failed-read guards
+    are re-applied from scratch every time regardless.
+    """
+    try:
+        with open(STATE_PATH, encoding='utf-8') as f:
+            saved = json.load(f)
+        return {int(k): int(v) for k, v in saved.get('pendingDeletes', {}).items()}
+    except (OSError, json.JSONDecodeError, ValueError, AttributeError):
+        return {}
+
+
+def save_pending(pending):
+    tmp = STATE_PATH + '.tmp'
+    try:
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump({'pendingDeletes': {str(k): v for k, v in pending.items()}}, f)
+        os.replace(tmp, STATE_PATH)      # atomic, so a crash cannot leave it half-written
+    except OSError as e:
+        log(f'  could not save watcher state ({e})')
 
 
 def drive_start_times(cache):
@@ -418,6 +452,9 @@ def delete_pass(state, dry_run, push, allow_bulk, confirmations=DELETE_CONFIRMAT
 
     confirmed, blocked = find_deletions(drive_starts, state['pending_deletes'],
                                         confirmations)
+    if not dry_run:                      # --dry-run leaves no trace, counters included
+        save_pending(state['pending_deletes'])
+
     if blocked:
         log(f'  {blocked}')
         return False
@@ -462,6 +499,10 @@ def delete_pass(state, dry_run, push, allow_bulk, confirmations=DELETE_CONFIRMAT
     publish(names, push, subject=subject,
             body='Deleted from the Drive folder, removed by watch_drive.py.\n\n'
                  + '\n'.join(f'  {n}' for n in names))
+
+    for _fname, start in confirmed:      # acted on; stop tracking them
+        state['pending_deletes'].pop(start, None)
+    save_pending(state['pending_deletes'])
     return True
 
 
@@ -485,7 +526,9 @@ def main():
         + (' (single pass)' if once else f', every {POLL_SECONDS}s'))
 
     seen  = {}
-    state = {'start_cache': {}, 'pending_deletes': {}}
+    state = {'start_cache': {}, 'pending_deletes': load_pending()}
+    if state['pending_deletes']:
+        log(f'  {len(state["pending_deletes"])} track(s) already pending deletion from a previous run')
 
     if once:
         # Nothing has been observed yet, so prime the settle state and look again.
