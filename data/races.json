@@ -1,6 +1,6 @@
 {
  "source": "https://nsc.ca/nsc_racing/results/2026/jam/summer_series.htm",
- "fetched": "2026-08-05T03:08:06Z",
+ "fetched": "2026-08-13T16:55:37Z",
  "boat": "O",
  "races": [
   {
@@ -814,6 +814,286 @@
      "corrected": 3294,
      "bce": 279,
      "points": "4.00"
+    }
+   ]
+  },
+  {
+   "race": 6,
+   "fleet": "A",
+   "date": "2026-08-06",
+   "start": 66000,
+   "course": "JAM",
+   "windDir": "315-325",
+   "windSpeed": "4-6 knots",
+   "boats": [
+    {
+     "rank": "1",
+     "name": "Cheque Mate",
+     "type": "J/22",
+     "sail": "1482",
+     "helm": "Pattey, Elizabeth",
+     "phrf": "181",
+     "finish": "19:03:35",
+     "elapsed": 2615,
+     "corrected": 2543,
+     "bce": 0,
+     "points": "1.00"
+    },
+    {
+     "rank": "2",
+     "name": "Tottie",
+     "type": "Express 27",
+     "sail": "110",
+     "helm": "Walsworth, Viv",
+     "phrf": "159",
+     "finish": "19:02:09",
+     "elapsed": 2529,
+     "corrected": 2556,
+     "bce": 13,
+     "points": "2.00"
+    },
+    {
+     "rank": "3",
+     "name": "Unplugged",
+     "type": "Laser 28",
+     "sail": "164",
+     "helm": "Harley, Rory",
+     "phrf": "132",
+     "finish": "19:01:02",
+     "elapsed": 2462,
+     "corrected": 2614,
+     "bce": 67,
+     "points": "3.00"
+    },
+    {
+     "rank": "4",
+     "name": "Rainy Day Woman",
+     "type": "C&C 35-1",
+     "sail": "14133",
+     "helm": "Robidoux, Fraser",
+     "phrf": "153",
+     "finish": "19:04:10",
+     "elapsed": 2650,
+     "corrected": 2707,
+     "bce": 161,
+     "points": "4.00"
+    },
+    {
+     "rank": "5",
+     "name": "Waltzing Bear, Too",
+     "type": "Catalina 320 WK",
+     "sail": "797",
+     "helm": "Lussier, Marc",
+     "phrf": "192",
+     "finish": "19:07:17",
+     "elapsed": 2837,
+     "corrected": 2708,
+     "bce": 173,
+     "points": "5.00"
+    },
+    {
+     "rank": "6",
+     "name": "Wind Warrior",
+     "type": "C&C 115",
+     "sail": "11585",
+     "helm": "Osman, Adry",
+     "phrf": "70",
+     "finish": "18:59:18",
+     "elapsed": 2358,
+     "corrected": 2833,
+     "bce": 241,
+     "points": "6.00"
+    },
+    {
+     "rank": "7",
+     "name": "Mandolin Wind",
+     "type": "Niagara 26 OB",
+     "sail": "62",
+     "helm": "Carran, Andrew",
+     "phrf": "185",
+     "finish": "19:11:30",
+     "elapsed": 3090,
+     "corrected": 2985,
+     "bce": 457,
+     "points": "7.00"
+    }
+   ]
+  },
+  {
+   "race": 6,
+   "fleet": "B",
+   "date": "2026-08-06",
+   "start": 66360,
+   "course": "JAM",
+   "windDir": "315-325",
+   "windSpeed": "4-6 Knots",
+   "boats": [
+    {
+     "rank": "1",
+     "name": "Apex",
+     "type": "Tanzer 26",
+     "sail": "849",
+     "helm": "Chapdelaine, Jean-Francois",
+     "phrf": "227",
+     "finish": "19:12:33",
+     "elapsed": 2793,
+     "corrected": 2517,
+     "bce": 0,
+     "points": "1.00"
+    },
+    {
+     "rank": "2",
+     "name": "Veleda III",
+     "type": "C&C 31 Corvette",
+     "sail": "4046",
+     "helm": "Moss, John",
+     "phrf": "217",
+     "finish": "19:13:51",
+     "elapsed": 2871,
+     "corrected": 2630,
+     "bce": 122,
+     "points": "2.00"
+    },
+    {
+     "rank": "3",
+     "name": "Yulara",
+     "type": "Mirage 27-2",
+     "sail": "386",
+     "helm": "Mead, James",
+     "phrf": "224",
+     "finish": "19:15:15",
+     "elapsed": 2955,
+     "corrected": 2676,
+     "bce": 175,
+     "points": "3.00"
+    },
+    {
+     "rank": "4",
+     "name": "A Wave From It All",
+     "type": "Mirage 27-2",
+     "sail": "422",
+     "helm": "Seymour, Brian",
+     "phrf": "224",
+     "finish": "19:16:15",
+     "elapsed": 3015,
+     "corrected": 2731,
+     "bce": 235,
+     "points": "4.00"
+    },
+    {
+     "rank": "5",
+     "name": "Azura",
+     "type": "Mirage 24",
+     "sail": "33",
+     "helm": "Gray, Glenna",
+     "phrf": "225",
+     "finish": "19:16:43",
+     "elapsed": 3043,
+     "corrected": 2752,
+     "bce": 259,
+     "points": "5.00"
+    },
+    {
+     "rank": "6",
+     "name": "Skean-Dhu",
+     "type": "Tanzer 8.5",
+     "sail": "68",
+     "helm": "McMillan, Morgan",
+     "phrf": "228",
+     "finish": "19:18:06",
+     "elapsed": 3126,
+     "corrected": 2813,
+     "bce": 329,
+     "points": "6.00"
+    },
+    {
+     "rank": "7",
+     "name": "Carpe Diem",
+     "type": "Tanzer 22",
+     "sail": "14",
+     "helm": "Williamson, Brian",
+     "phrf": "228",
+     "finish": "19:19:33",
+     "elapsed": 3213,
+     "corrected": 2891,
+     "bce": 416,
+     "points": "7.00"
+    },
+    {
+     "rank": "8",
+     "name": "Mardi Gras II",
+     "type": "Grampian 28",
+     "sail": "112",
+     "helm": "Douglas, Ian",
+     "phrf": "215",
+     "finish": "19:19:05",
+     "elapsed": 3185,
+     "corrected": 2927,
+     "bce": 445,
+     "points": "8.00"
+    },
+    {
+     "rank": "9",
+     "name": "Tropical Quest",
+     "type": "Hunter 310WK",
+     "sail": "99",
+     "helm": "Kidd, Stephen",
+     "phrf": "205",
+     "finish": "19:27:52",
+     "elapsed": 3712,
+     "corrected": 3467,
+     "bce": 1017,
+     "points": "9.00"
+    }
+   ]
+  },
+  {
+   "race": 6,
+   "fleet": "C",
+   "date": "2026-08-06",
+   "start": 66000,
+   "course": "Jam",
+   "windDir": "315-325",
+   "windSpeed": "4-6 Knots",
+   "boats": [
+    {
+     "rank": "1",
+     "name": "Snoekie",
+     "type": "Tanzer 22",
+     "sail": "333",
+     "helm": "Ernst, Ross",
+     "phrf": "230",
+     "finish": "19:10:25",
+     "elapsed": 3025,
+     "corrected": 2714,
+     "bce": 0,
+     "points": "1.00"
+    },
+    {
+     "rank": "2",
+     "name": "Swan Song",
+     "type": "Nonsuch 26",
+     "sail": "72",
+     "helm": "Swan, Euan",
+     "phrf": "239",
+     "finish": "19:12:49",
+     "elapsed": 3169,
+     "corrected": 2803,
+     "bce": 101,
+     "points": "2.00"
+    },
+    {
+     "rank": "3",
+     "name": "This Too",
+     "type": "Catalina 22",
+     "sail": "14005",
+     "helm": "Doucet, Claude",
+     "phrf": "276",
+     "finish": "19:23:36",
+     "elapsed": 3816,
+     "corrected": 3191,
+     "bce": 571,
+     "points": "3.00"
     }
    ]
   }
