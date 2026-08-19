@@ -328,6 +328,17 @@ def tree_is_clean_enough():
     """
     Refuse to commit alongside unrelated edits. A watcher that commits whatever
     it finds will eventually publish someone's half-finished work.
+
+    The risk is narrower than it first looks. publish() stages by explicit path,
+    but `git commit` writes the whole index, so the only unrelated work that can
+    reach a commit is work somebody had already staged. An unstaged edit or an
+    untracked file outside STAGE_PATHS cannot be picked up by a targeted
+    `git add` and so cannot end up in the commit.
+
+    Judging those as dirt is a false positive with real teeth: an untracked
+    SAILING_VIEWER_CODE_OF_CONDUCT.md sitting in the folder wedged the watcher
+    into a loop, refusing the same track every 30 seconds for hours. So only the
+    index column decides.
     """
     # Do not strip the whole output: porcelain lines begin with two status
     # characters and a space, and stripping eats the leading space on the first
@@ -339,9 +350,15 @@ def tree_is_clean_enough():
 
     dirty = []
     for line in lines:
+        index_status = line[0]           # XY path: X is the index, Y the worktree
         path = line[3:].strip().strip('"')
         if ' -> ' in path:               # a rename; judge it by where it landed
             path = path.split(' -> ', 1)[1].strip().strip('"')
+
+        # Untracked ('??') and worktree-only edits (' M', ' D') stay behind.
+        if index_status in ('?', ' '):
+            continue
+
         top = path.split('/')[0]
         if top in STAGE_PATHS or path.lower().endswith('.gpx') or path == os.path.basename(LOG_PATH):
             continue
