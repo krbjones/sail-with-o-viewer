@@ -88,10 +88,19 @@
 }
 
 @media (max-width: 420px) {
-  /* Below this the legend swallows the map — collapse it to swatches only. */
-  #speed-legend .legend-row span { display: none; }
+  /* This used to hide the labels outright to stop the legend swallowing the
+     map, which left six unexplained colour bars. A speed ramp you might guess;
+     the point-of-sail colours are arbitrary, so the legend became decoration.
+
+     Shrinking it buys back the same room: at 375px it reads out at ~112px,
+     narrower than the 116px the labelled desktop version reserved, and it is
+     still draggable if it covers something. */
   #speed-legend { min-width: 0; padding: 6px 8px; }
-  .legend-swatch { width: 22px; }
+  .legend-row    { gap: 6px; margin-bottom: 4px; }
+  .legend-swatch { width: 16px; }
+  .legend-row span { font-size: 9px; white-space: nowrap; }
+  .legend-title  { font-size: 9px; margin-bottom: 4px; }
+  .legend-mode button { padding: 5px 8px; font-size: 10px; }
 
   #stats-grid { grid-template-columns: repeat(2, 1fr); }
 }

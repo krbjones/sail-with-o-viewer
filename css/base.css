@@ -24,7 +24,17 @@
 
 body {
   font-family: var(--font);
+  /* On a phone, 100vh is the viewport with the URL bar HIDDEN — the largest it
+     can ever get. While the bar is showing, which it is on load, the last
+     60-100px of the page sit below the fold, and `overflow: hidden` means they
+     cannot be scrolled to either. That put the whole transport bar — play,
+     rewind, the scrubber — permanently out of reach on a phone.
+
+     dvh tracks the bar as it slides away, so the layout always fits what is
+     actually on screen. vh stays first as a fallback for anything that predates
+     it (Safari < 15.4, Chrome < 108). */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
