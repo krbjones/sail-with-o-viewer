@@ -312,6 +312,22 @@ def classify(names):
             skipped.append((name, f'same start time as {known[start]} — a rename, not a new track'))
             continue
 
+        # `known` is read once from the manifest, so it cannot see a duplicate
+        # that is arriving in this very batch. SailFreeGps periodically dumps
+        # the whole session to a new file, which means two files with the same
+        # start time can land together: both passed this check and both were
+        # published as separate tracks, double-counting the distance. Keep the
+        # longer one — a later dump is a superset of the earlier.
+        clash = next((i for i, (_n, s) in enumerate(ingest) if s == start), None)
+        if clash is not None:
+            other, _ = ingest[clash]
+            if os.path.getsize(src) <= os.path.getsize(os.path.join(WATCH_DIR, other)):
+                skipped.append((name, f'same start time as {other} in this batch — the shorter dump'))
+                continue
+            skipped.append((other, f'same start time as {name} in this batch — the shorter dump'))
+            ingest[clash] = (name, start)
+            continue
+
         ingest.append((name, start))
 
     return ingest, skipped

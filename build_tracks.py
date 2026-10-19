@@ -63,6 +63,27 @@ MAX_CONSECUTIVE_DROPS = 20
 # longer than this is bridged: the position is kept, the speed is not invented.
 GAP_SECONDS           = 60.0
 
+# ── Passages under power ──────────────────────────────────────────
+# Some logs are not sailing at all: two in this archive are Gulf Islands ferry
+# crossings, recorded because the tracker was left running.
+#
+# Peak speed does NOT identify them, and using it would be destructive: 26
+# tracks top 15 kt, but most are ordinary sails carrying one bad fix. The worst
+# peaks at 59.2 kt and is unmistakably real — 30 nm at 8.2 kt average over
+# three and a half hours.
+#
+# What separates a passage is that it never slows down. A sailed track spends a
+# third of its time stopped and medians around 5 kt; the ferries median 14-17 kt
+# and one never drops below 13. Average speed alone puts a 4 kt gap between the
+# two ferries (16.5, 14.7) and the fastest real track (10.5, a Solent sail), so
+# the threshold sits in open space rather than on top of the data.
+#
+# This only warns. A fast multihull or a planing dinghy could sit up here
+# legitimately, and silently dropping someone's best day is worse than printing
+# a line they can ignore. To actually drop one, add it to ingest_ignore.txt.
+UNDER_POWER_AVG_KTS   = 12.0
+UNDER_POWER_MAX_IDLE  = 0.20   # fraction of fixes below MOVING_MIN_KTS
+
 
 # ── Helpers ───────────────────────────────────────────────────────
 
@@ -196,6 +217,8 @@ def parse_gpx(filepath):
     # meaningful sample, or a few seconds of movement reads as a huge average.
     avg_spd = (dist_nm / (moving_ms / 3600000)) if moving_ms >= 60000 else 0.0
 
+    idle = sum(1 for p in pts if p[3] < MOVING_MIN_KTS) / len(pts)
+
     return {
         'pts':       pts,
         'bbox':      [round(min(lats), 6), round(min(lons), 6),
@@ -206,7 +229,19 @@ def parse_gpx(filepath):
         'movingMs':  moving_ms,
         'dropped':   dropped,
         'dupes':     dupes,
+        'idleFrac':  round(idle, 3),
     }
+
+
+def looks_under_power(record):
+    """
+    True if a track reads as a passage under power rather than a sail.
+
+    Both tests have to agree. A high average on its own can be a genuinely
+    quick day; what gives a ferry away is that it also never stops.
+    """
+    return (record['avgSpd'] >= UNDER_POWER_AVG_KTS and
+            record['idleFrac'] <= UNDER_POWER_MAX_IDLE)
 
 
 FNAME_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})_\d{6}\.gpx$')
@@ -301,6 +336,7 @@ def main():
     months   = {}
     total_kb = 0
     skipped  = reused = total_dropped = total_dupes = glitchy = 0
+    under_power = []
 
     for month in sorted(files_by_month):
         existing = load_existing(month) if skip_existing else {}
@@ -323,6 +359,9 @@ def main():
                 if parsed['dropped']:
                     total_dropped += parsed['dropped']
                     glitchy       += 1
+                if looks_under_power(parsed):
+                    under_power.append((fname, parsed['avgSpd'],
+                                        parsed['dist'], parsed['idleFrac']))
                 record = {
                     'id':       fname,
                     's':        parsed['pts'][0][2],
@@ -388,6 +427,21 @@ def main():
           f'{total_kb:.0f} KB total ({reused} reused, {skipped} skipped)')
     if total_dupes:
         print(f'Dropped {total_dupes} duplicate timestamp(s)')
+    if under_power:
+        # Loud, last, and never acted on automatically: a fast multihull could
+        # read the same way, and silently dropping someone's best day is worse
+        # than a line they can ignore.
+        print()
+        print(f'WARNING: {len(under_power)} track(s) look like passages under power, '
+              f'not sailing:')
+        for fname, avg, dist, idle in under_power:
+            print(f'  {fname}  avg {avg:.1f} kt over {dist:.1f} nm, '
+                  f'{idle:.0%} of fixes stopped')
+        print(f'  (avg >= {UNDER_POWER_AVG_KTS:.0f} kt and <= {UNDER_POWER_MAX_IDLE:.0%} stopped). '
+              f'They are published as normal;')
+        print('  add one to ingest_ignore.txt to keep it in Drive but off the site.')
+        print()
+
     if total_dropped:
         print(f'Rejected {total_dropped} GPS glitch(es) '
               f'(>{MIN_GLITCH_METRES:.0f} m and >{MAX_PLAUSIBLE_KTS:.0f} kt) '

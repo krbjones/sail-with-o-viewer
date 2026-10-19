@@ -13,3 +13,9 @@
 # Examples:
 #   2026-08-01_11-19-07.gpx     # SailFreeGPS bench test, boat never left the dock
 #   1785592164000               # the same track, by start time
+
+# Gulf Islands ferry crossing, 2026-08-07 — logged because the tracker was left
+# running. SailFreeGps dumped the session twice (09-36-51 ends 16:36, 10-28-50
+# ends 17:28 and is a superset), so both files share this start time and this
+# one line covers the pair.
+1786116944000               # SailFreeGps_2026-08-07_09-36-51 / _10-28-50
