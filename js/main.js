@@ -22,6 +22,7 @@ import { initFilterPanel, applyFilter, setRange, currentRange } from './ui/filte
 import { initStoragePanel, refreshStorageInfo } from './ui/storagePanel.js';
 import { initImportPanel } from './ui/importPanel.js';
 import { initStatsPanel, setSeekHandler, setCloseHandler } from './ui/statsPanel.js';
+import { initSummaryPanel } from './ui/summaryPanel.js';
 import { initKeyboard } from './ui/keyboard.js';
 import { initDrawer } from './ui/drawer.js';
 import {
@@ -131,6 +132,7 @@ function init() {
   initStoragePanel();
   initImportPanel();
   initStatsPanel();
+  initSummaryPanel();
   initDebrief();
   initDrawer();
   initKeyboard();

@@ -1,6 +1,6 @@
 import { state } from '../core/store.js';
 import { $ } from '../core/dom.js';
-import { localHHMM, fmtDateInput } from '../core/format.js';
+import { fmtDateInput } from '../core/format.js';
 import { renderTracks } from '../map/trackRenderer.js';
 import { clearMarkers } from '../map/markerRenderer.js';
 import { renderForView, setAllShown } from './trackList.js';
@@ -10,6 +10,8 @@ import { registerPref, savePrefs } from '../core/prefs.js';
 import { refreshStorageInfo } from './storagePanel.js';
 import { renderStats } from './statsPanel.js';
 import { saveUrlState } from '../data/urlState.js';
+import { passesTimeOfDay } from '../data/summary.js';
+import { renderSummary } from './summaryPanel.js';
 
 /** Current date filter as epoch ms, with open ends when a field is blank. */
 export function currentRange() {
@@ -24,15 +26,6 @@ export function currentRange() {
 export function setRange(fromMs, toMs) {
   $('#date-from').value = fmtDateInput(fromMs);
   $('#date-to').value   = fmtDateInput(toMs);
-}
-
-/** True if a track's local start time falls inside the time-of-day window. */
-function passesTimeOfDay(track, timeFrom, timeTo) {
-  if (!timeFrom || !timeTo) return true;
-  const hhmm = localHHMM(track.startTime);
-  return timeFrom <= timeTo
-    ? (hhmm >= timeFrom && hhmm <= timeTo)          // normal window
-    : !(hhmm < timeFrom && hhmm > timeTo);          // window wrapping midnight
 }
 
 /** Re-filter the loaded tracks and redraw everything. */
@@ -53,6 +46,10 @@ export function applyFilter() {
   renderForView();
   renderStats();      // selection was just cleared, so this hides the panel
   updateAnimRange();
+
+  // Totals come from the manifest, so they describe the whole date range even
+  // when the map extent or the search box is hiding some of it from the list.
+  renderSummary({ fromMs, toMs, timeFrom, timeTo });
 }
 
 export function initFilterPanel() {

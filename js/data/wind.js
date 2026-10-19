@@ -216,12 +216,28 @@ function nearestArea(lat, lon) {
   return best;
 }
 
+/**
+ * Centre of a track's bounding box.
+ *
+ * Two shapes are in circulation and both reach here: hydrated tracks carry bbox
+ * as {minLat,…} (trackModel.js), while raw manifest entries in
+ * state.allTrackMeta keep the flat [minLat, minLon, maxLat, maxLon] array the
+ * build writes. The flat one used to read as undefined, which made every
+ * coordinate NaN and quietly resolved to no area at all rather than failing.
+ */
+function bboxCentre(track) {
+  const b = track.bbox;
+  if (Array.isArray(b))        return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+  if (b && b.minLat !== undefined) return [(b.minLat + b.maxLat) / 2, (b.minLon + b.maxLon) / 2];
+  if (track.lats && track.lats.length) return [track.lats[0], track.lons[0]];
+  return null;
+}
+
 /** Cache the area lookup on the track — it never moves. */
-function areaFor(track) {
+export function areaFor(track) {
   if (track._windArea === undefined) {
-    const lat = track.bbox ? (track.bbox.minLat + track.bbox.maxLat) / 2 : track.lats[0];
-    const lon = track.bbox ? (track.bbox.minLon + track.bbox.maxLon) / 2 : track.lons[0];
-    const a = nearestArea(lat, lon);
+    const c = bboxCentre(track);
+    const a = c ? nearestArea(c[0], c[1]) : null;
     track._windArea = a ? a.id : null;
   }
   return track._windArea;
@@ -235,6 +251,12 @@ function areaFor(track) {
 export function windAt(areaId, t) {
   const rows = byArea.get(areaId);
   if (!rows || !rows.length) return null;
+
+  // One stored hour as a reading. The two clamped branches below called this
+  // before it existed, so any timestamp landing on or outside an area's first
+  // or last covered hour threw a ReferenceError instead of returning wind —
+  // which is exactly where a whole-track or whole-period walk starts and ends.
+  const sample = row => ({ speed: row[2], windFrom: row[3], gust: row[4] ?? null });
 
   let lo = 0, hi = rows.length - 1;
   if (t < rows[0][0] - MAX_WIND_GAP_MS || t > rows[hi][0] + MAX_WIND_GAP_MS) return null;

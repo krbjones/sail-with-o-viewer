@@ -1,0 +1,92 @@
+/* ── Period + all-time summary ── */
+
+#summary-section h2 { margin-bottom: 10px; }
+
+.summary-range {
+  font-size: 10px; color: var(--text-mute);
+  margin-bottom: 8px; letter-spacing: 0.02em;
+}
+
+/* Same tile treatment as the per-track stats panel (.stat/.stat-value/
+   .stat-label live in css/stats.css); only the grid differs. */
+.summary-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px 6px;
+}
+
+.summary-wind {
+  margin-top: 9px; padding-top: 8px;
+  border-top: 1px solid var(--surface);
+  font-size: 11px; color: var(--text-dim);
+}
+.summary-wind-note { color: var(--text-mute); font-size: 10px; }
+.summary-empty     { font-size: 11px; color: var(--text-mute); }
+
+/* ── All time ── */
+
+#alltime {
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--surface);
+}
+#alltime > summary {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; list-style: none;
+  font-size: 11px; color: var(--text-dim);
+}
+#alltime > summary::-webkit-details-marker { display: none; }
+#alltime > summary:hover { color: var(--text); }
+.alltime-label {
+  flex: 1; text-transform: uppercase;
+  letter-spacing: 0.06em; font-size: 10px; color: var(--text-mute);
+}
+#alltime-total { font-weight: 600; color: var(--text); font-size: 12px; }
+#alltime-sub {
+  font-size: 10px; color: var(--text-mute);
+  margin: 4px 0 8px 16px;
+}
+
+.summary-caret {
+  display: inline-block; width: 9px;
+  font-size: 9px; color: var(--text-mute);
+  transition: transform 0.15s ease;
+}
+#alltime[open] > summary .summary-caret,
+.summary-row-year.open .summary-caret { transform: rotate(90deg); }
+
+/* ── Year and month rows ── */
+
+.summary-row {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; font-size: 11px; color: var(--text-dim);
+}
+
+.summary-row-year {
+  background: none; border: none; padding: 4px 0;
+  cursor: pointer; font-family: inherit; text-align: left;
+  border-radius: var(--radius-sm);
+}
+.summary-row-year:hover { color: var(--text); }
+.summary-row-label { min-width: 30px; }
+
+/* Proportional bar: the good and bad seasons read without parsing numbers. */
+.summary-bar {
+  flex: 1; height: 4px; min-width: 20px;
+  background: var(--surface); border-radius: 2px; overflow: hidden;
+}
+.summary-bar-fill {
+  display: block; height: 100%;
+  background: var(--accent); border-radius: 2px;
+}
+
+.summary-row-dist {
+  min-width: 56px; text-align: right;
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+
+.summary-months  { margin: 1px 0 5px 15px; }
+.summary-row-month { padding: 2px 0; font-size: 10px; color: var(--text-mute); }
+.summary-row-month .summary-row-dist { color: var(--text-dim); min-width: 52px; }
+.summary-row-count {
+  flex: 1; text-align: right;
+  font-variant-numeric: tabular-nums; opacity: 0.7;
+}
